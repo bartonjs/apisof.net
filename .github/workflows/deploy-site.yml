@@ -7,6 +7,7 @@ on:
       - .github/workflows/deploy-site.yml
       - src/apisof.net/**
       - src/Terrajobst.ApiCatalog/**
+  workflow_dispatch:
 
 env:
   DOTNET_NOLOGO: true
