@@ -53,7 +53,7 @@ internal sealed class Main : IConsoleMain
 
             var stopwatch = Stopwatch.StartNew();
 
-            Directory.CreateDirectory(rootPath);
+            Directory.CreateDirectory(frameworksPath);
             await DownloadArchivedPlatformsAsync(frameworksPath);
             await DownloadPackagedPlatformsAsync(frameworksPath, packsPath);
             await DownloadDotnetPackageListAsync(packageListPath);
