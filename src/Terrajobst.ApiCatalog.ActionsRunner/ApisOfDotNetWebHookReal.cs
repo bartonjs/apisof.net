@@ -27,7 +27,7 @@ internal sealed class ApisOfDotNetWebHookReal : ApisOfDotNetWebHook
     private static string GetWebHookUrl(ApisOfDotNetWebHookSubject subject)
     {
         var blobName = GetBlobName(subject);
-        return $"https://apisof.net/webhook?subject={blobName}";
+        return $"https://catalog.apireview.net/webhook?subject={blobName}";
     }
 
     private static string GetBlobName(ApisOfDotNetWebHookSubject subject)
