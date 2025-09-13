@@ -24,10 +24,10 @@ internal sealed class ApisOfDotNetWebHookReal : ApisOfDotNetWebHook
         Console.WriteLine($"Webhook returned: {response.StatusCode}");
     }
 
-    private static string GetWebHookUrl(ApisOfDotNetWebHookSubject subject)
+    private string GetWebHookUrl(ApisOfDotNetWebHookSubject subject)
     {
         var blobName = GetBlobName(subject);
-        return $"https://apisof.net/webhook?subject={blobName}";
+        return $"https://{_options.Value.ApisOfDotNetWebHookHostname}/webhook?subject={blobName}";
     }
 
     private static string GetBlobName(ApisOfDotNetWebHookSubject subject)
