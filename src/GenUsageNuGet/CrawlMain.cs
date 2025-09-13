@@ -211,16 +211,19 @@ internal sealed class CrawlMain : ConsoleCommand
         Trace("Uploading usages...");
         await _store.UploadNuGetUsageResultsAsync(usagesPath, _forceUpload);
 
-        Trace("Deleting local database copy due to destructive feature computation.");
-        await usageDatabase.CloseAsync();
+        if (_hostEnvironment.IsDevelopment())
+        {
+            Trace("Deleting local database copy due to destructive feature computation.");
+            await usageDatabase.CloseAsync();
 
-        try
-        {
-            File.Delete(databasePath);
-        }
-        catch (Exception e)
-        {
-            Trace($"Delete failed, manually delete {databasePath}: {e}");
+            try
+            {
+                File.Delete(databasePath);
+            }
+            catch (Exception e)
+            {
+                Trace($"Delete failed, manually delete {databasePath}: {e}");
+            }
         }
     }
 
