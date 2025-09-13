@@ -27,6 +27,7 @@ jobs:
       env:
         AzureStorageConnectionString: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
         ApisOfDotNetWebHookSecret: ${{ secrets.APISOFDOTNET_WEB_HOOK_SECRET }}
+        ApisOfDotNetWebHookHostname: ${{ vars.APISOFDOTNET_WEB_HOOK_HOSTNAME }}
       run: |
         cd ./src/GenCatalog
         dotnet run
