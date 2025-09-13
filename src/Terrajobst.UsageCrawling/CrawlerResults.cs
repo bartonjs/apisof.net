@@ -2,10 +2,10 @@ namespace Terrajobst.UsageCrawling;
 
 public sealed class CrawlerResults
 {
-    public CrawlerResults(IReadOnlyDictionary<ApiKey, int> data)
+    public CrawlerResults(IReadOnlySet<ApiKey> data)
     {
         Data = data;
     }
 
-    public IReadOnlyDictionary<ApiKey, int> Data { get; }
+    public IReadOnlySet<ApiKey> Data { get; }
 }

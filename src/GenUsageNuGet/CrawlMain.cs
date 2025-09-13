@@ -1,11 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-
+using System.Threading.Channels;
 using GenUsageNuGet.Infra;
 using GenUsagePlanner;
-
+using Microsoft.Extensions.Hosting;
+using Mono.Options;
 using NuGet.Packaging.Core;
-
 using Terrajobst.ApiCatalog;
 using Terrajobst.ApiCatalog.ActionsRunner;
 using Terrajobst.UsageCrawling.Collectors;
@@ -15,371 +15,339 @@ namespace GenUsageNuGet;
 
 internal sealed class CrawlMain : ConsoleCommand
 {
+    private static int s_workerStartedCount;
+
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly ScratchFileProvider _scratchFileProvider;
     private readonly ApisOfDotNetStore _store;
     private readonly GitHubActionsSummaryTable _summaryTable;
 
-    public CrawlMain(ScratchFileProvider scratchFileProvider,
-                     ApisOfDotNetStore store,
-                     GitHubActionsSummaryTable summaryTable)
+    private int _workerCount = 10;
+    private int _memLimitGb = 40;
+    private bool _forceUpload;
+
+    public CrawlMain(
+        IHostEnvironment hostEnvironment,
+        ScratchFileProvider scratchFileProvider,
+        ApisOfDotNetStore store,
+        GitHubActionsSummaryTable summaryTable)
     {
+        ThrowIfNull(hostEnvironment);
         ThrowIfNull(scratchFileProvider);
         ThrowIfNull(store);
         ThrowIfNull(summaryTable);
 
+        _hostEnvironment = hostEnvironment;
         _scratchFileProvider = scratchFileProvider;
         _store = store;
         _summaryTable = summaryTable;
     }
-
+    
     public override string Name => "crawl";
 
     public override string Description => "Starts the crawling";
 
-    public override async Task ExecuteAsync()
+    private static void Trace(string message)
     {
+        IO.Trace(message);
+    }
+
+    public override void AddOptions(OptionSet options)
+    {
+        options.Add("w=", $"Number of {{worker}} threads (default {_workerCount})", v => _workerCount = int.Parse(v));
+        options.Add("m=", $"{{Memory}} limit, in GB (default {_memLimitGb}", (int v) => _memLimitGb = v);
+        options.Add("u", "{Upload}, even in development mode.", v => _forceUpload = true);
+    }
+
+    public override async Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        AppContext.SetData("GCHeapHardLimit", (ulong)_memLimitGb * 1_024 * 1_024 * 1_024);
+        GC.RefreshMemoryLimit();
+
         var apiCatalogPath = _scratchFileProvider.GetScratchFilePath("apicatalog.dat");
         var databasePath = _scratchFileProvider.GetScratchFilePath("usages-nuget.db");
         var usagesPath = _scratchFileProvider.GetScratchFilePath("usages-nuget.tsv");
 
-        Console.WriteLine("Downloading API catalog...");
+        if (_forceUpload)
+            Trace("Force upload enabled, will upload even in development mode.");
 
+        Trace("Downloading API catalog...");
         await _store.DownloadApiCatalogAsync(apiCatalogPath);
 
-        Console.WriteLine("Loading API catalog...");
-
+        Trace("Loading API catalog...");
         var apiCatalog = await ApiCatalogModel.LoadAsync(apiCatalogPath);
 
-        Console.WriteLine("Downloading previously indexed usages...");
-
+        Trace("Downloading previously indexed usages...");
         await _store.DownloadNuGetUsageDatabaseAsync(databasePath);
 
+        Trace("Loading existing database");
         using var usageDatabase = await NuGetUsageDatabase.OpenOrCreateAsync(databasePath);
 
-        Console.WriteLine("Discovering existing packages...");
+        Trace("Discovering existing packages...");
 
         var packagesWithVersions = (await usageDatabase.GetReferenceUnitsAsync()).ToArray();
 
-        Console.WriteLine("Discovering latest packages...");
+        Trace("Discovering latest packages...");
 
         var stopwatch = Stopwatch.StartNew();
-        var packages = await GetAllPackagesAsync();
+        (IReadOnlyList<PackageIdentity> packages, var incremental) = await IO.LoadPackageQueueAsync(cancellationToken);
 
-        Console.WriteLine($"Finished package discovery. Took {stopwatch.Elapsed}");
-        Console.WriteLine($"Found {packages.Count:N0} package(s) in total.");
-        _summaryTable.AppendNumber("#Packages (All)", packages.Count);
-
-        packages = CollapseToLatestStableAndLatestPreview(packages);
-
-        Console.WriteLine($"Found {packages.Count:N0} package(s) after collapsing to latest stable & latest preview.");
+        Trace($"Finished package discovery. Took {stopwatch.Elapsed}");
         _summaryTable.AppendNumber("#Packages (Latest Stable & Preview)", packages.Count);
 
         var indexedPackages = new HashSet<PackageIdentity>(packagesWithVersions.Select(p => p.ReferenceUnit));
         var currentPackages = new HashSet<PackageIdentity>(packages);
 
-        var packagesToBeDeleted = indexedPackages.Where(p => !currentPackages.Contains(p)).ToArray();
+        var packagesToBeDeleted = incremental ? [] : indexedPackages.Where(p => !currentPackages.Contains(p)).ToArray();
         var packagesToBeIndexed = currentPackages.Where(p => !indexedPackages.Contains(p)).ToArray();
-        var packagesToBeReIndexed = packagesWithVersions.Where(pv => !packagesToBeDeleted.Contains(pv.ReferenceUnit) && pv.CollectorVersion < UsageCollectorSet.CurrentVersion)
+        var packagesToBeReIndexed = packagesWithVersions.Where(pv => pv.CollectorVersion < UsageCollectorSet.CurrentVersion)
+            .Where(pv => !packagesToBeDeleted.Contains(pv.ReferenceUnit))
             .Select(pv => pv.ReferenceUnit)
             .ToArray();
         var packagesToBeCrawled = packagesToBeIndexed.Concat(packagesToBeReIndexed).ToArray();
 
-        Console.WriteLine($"Found {indexedPackages.Count:N0} package(s) in the index.");
-        Console.WriteLine($"Found {packagesToBeDeleted.Length:N0} package(s) to remove from the index.");
-        Console.WriteLine($"Found {packagesToBeIndexed.Length:N0} package(s) to add to the index.");
-        Console.WriteLine($"Found {packagesToBeReIndexed.Length:N0} package(s) to be re-indexed.");
-        Console.WriteLine($"Found {packagesToBeCrawled.Length:N0} package(s) to be crawled.");
+        Trace($"Found {indexedPackages.Count:N0} package(s) in the index.");
+        
+        if (!incremental)
+            Trace($"Found {packagesToBeDeleted.Length:N0} package(s) to remove from the index.");
+        
+        Trace($"Found {packagesToBeIndexed.Length:N0} package(s) to add to the index.");
+        Trace($"Found {packagesToBeReIndexed.Length:N0} package(s) to be re-indexed.");
+        Trace($"Found {packagesToBeCrawled.Length:N0} package(s) to be crawled.");
 
         _summaryTable.AppendNumber("#Packages in index", indexedPackages.Count);
-        _summaryTable.AppendNumber("#Packages to be removed", packagesToBeDeleted.Length);
+
+        if (!incremental)
+            _summaryTable.AppendNumber("#Packages to be removed", packagesToBeDeleted.Length);
+
         _summaryTable.AppendNumber("#Packages to be added", packagesToBeIndexed.Length);
         _summaryTable.AppendNumber("#Packages to be re-indexed", packagesToBeReIndexed.Length);
         _summaryTable.AppendNumber("#Packages to be crawled", packagesToBeCrawled.Length);
 
-        Console.WriteLine("Deleting packages...");
-
+        Trace("Deleting packages...");
         stopwatch.Restart();
         await usageDatabase.DeleteReferenceUnitsAsync(packagesToBeDeleted);
-
-        Console.WriteLine($"Finished deleting packages. Took {stopwatch.Elapsed}");
+        Trace($"Finished deleting packages. Took {stopwatch.Elapsed}");
 
         stopwatch.Restart();
-        await CrawlPackagesAsync(usageDatabase, packagesToBeCrawled);
+        List<PackageIdentity> skippedPackages = new();
+        await CrawlPackagesAsync(usageDatabase, packagesToBeCrawled, skippedPackages, cancellationToken);
+        Trace($"Finished crawling. Took {stopwatch.Elapsed}");
 
-        Console.WriteLine($"Finished crawling. Took {stopwatch.Elapsed}");
+        if (skippedPackages.Count > 0)
+        {
+            await IO.WritePackageQueueAsync(skippedPackages, default);
+        }
 
-        Console.WriteLine("Deleting features without usages...");
-
+        Trace("Deleting features without usages...");
         stopwatch.Restart();
         var featuresWithoutUsages = await usageDatabase.DeleteFeaturesWithoutUsagesAsync();
 
-        Console.WriteLine($"Finished deleting features without usages. Deleted {featuresWithoutUsages:N0} features. Took {stopwatch.Elapsed}");
+        Trace($"Finished deleting features without usages. Deleted {featuresWithoutUsages:N0} features. Took {stopwatch.Elapsed}");
         _summaryTable.AppendNumber("#Features without usages", featuresWithoutUsages);
 
-        Console.WriteLine("Vacuuming database...");
-
+        Trace("Vacuuming database...");
         stopwatch.Restart();
         await usageDatabase.VacuumAsync();
 
-        Console.WriteLine($"Finished vacuuming database. Took {stopwatch.Elapsed}");
+        Trace($"Finished vacuuming database. Took {stopwatch.Elapsed}");
 
         await usageDatabase.CloseAsync();
 
-        Console.WriteLine("Uploading database...");
-
+        Trace("Uploading database...");
         stopwatch.Restart();
-        await _store.UploadNuGetUsageDatabaseAsync(databasePath);
+        await _store.UploadNuGetUsageDatabaseAsync(databasePath, _forceUpload);
+        Trace($"Finished uploading database. Took {stopwatch.Elapsed}");
 
-        Console.WriteLine($"Finished uploading database. Took {stopwatch.Elapsed}");
+        if (_hostEnvironment.IsDevelopment())
+        {
+            Trace("Development Environment: Saving database backup...");
+            File.Copy(databasePath, databasePath + ".bak", overwrite: true);
+
+            if (!_forceUpload)
+            {
+                Trace("Development Environment: Exiting before destructive operations");
+                return;
+            }
+        }
 
         var databaseSize = new FileInfo(databasePath).Length;
         await usageDatabase.OpenAsync();
 
-        Console.WriteLine("Getting statistics...");
-
+        Trace("Getting statistics...");
         stopwatch.Restart();
         var statistics = await usageDatabase.GetStatisticsAsync();
-        Console.WriteLine($"Finished getting statistics. Took {stopwatch.Elapsed}");
+        Trace($"Finished getting statistics. Took {stopwatch.Elapsed}");
         _summaryTable.AppendNumber("#Indexed Features", statistics.FeatureCount);
         _summaryTable.AppendNumber("#Indexed Reference Units", statistics.ReferenceUnitCount);
         _summaryTable.AppendNumber("#Indexed Usages", statistics.UsageCount);
         _summaryTable.AppendBytes("#Index Size", databaseSize);
 
-        Console.WriteLine("Deleting reference units without usages...");
-
+        Trace("Deleting reference units without usages...");
         stopwatch.Restart();
         var referenceUnitsWithoutUsages = await usageDatabase.DeleteReferenceUnitsWithoutUsages();
 
-        Console.WriteLine($"Finished deleting reference units without usages. Deleted {referenceUnitsWithoutUsages:N0} reference units. Took {stopwatch.Elapsed}");
+        Trace($"Finished deleting reference units without usages. Deleted {referenceUnitsWithoutUsages:N0} reference units. Took {stopwatch.Elapsed}");
         _summaryTable.AppendNumber("#Reference units without usages", referenceUnitsWithoutUsages);
 
-        Console.WriteLine("Deleting irrelevant features...");
-
+        Trace("Deleting irrelevant features...");
         stopwatch.Restart();
         var irrelevantFeatures = await usageDatabase.DeleteIrrelevantFeaturesAsync(apiCatalog);
 
-        Console.WriteLine($"Finished deleting irrelevant features. Deleted {irrelevantFeatures:N0} features. Took {stopwatch.Elapsed}");
+        Trace($"Finished deleting irrelevant features. Deleted {irrelevantFeatures:N0} features. Took {stopwatch.Elapsed}");
         _summaryTable.AppendNumber("#Irrelevant features", irrelevantFeatures);
 
-        Console.WriteLine("Inserting parent features...");
-
+        Trace("Inserting parent features...");
         stopwatch.Restart();
         await usageDatabase.InsertParentsFeaturesAsync(apiCatalog);
 
-        Console.WriteLine($"Finished inserting parent features. Took {stopwatch.Elapsed}");
+        Trace($"Finished inserting parent features. Took {stopwatch.Elapsed}");
 
-        Console.WriteLine("Exporting usages...");
-
+        Trace("Exporting usages...");
         stopwatch.Restart();
         await usageDatabase.ExportUsagesAsync(usagesPath);
+        Trace($"Finished exporting usages. Took {stopwatch.Elapsed}");
 
-        Console.WriteLine($"Finished exporting usages. Took {stopwatch.Elapsed}");
+        Trace("Uploading usages...");
+        await _store.UploadNuGetUsageResultsAsync(usagesPath, _forceUpload);
 
-        Console.WriteLine("Uploading usages...");
+        Trace("Deleting local database copy due to destructive feature computation.");
+        await usageDatabase.CloseAsync();
 
-        await _store.UploadNuGetUsageResultsAsync(usagesPath);
+        try
+        {
+            File.Delete(databasePath);
+        }
+        catch (Exception e)
+        {
+            Trace($"Delete failed, manually delete {databasePath}: {e}");
+        }
     }
 
-    private async Task CrawlPackagesAsync(NuGetUsageDatabase usageDatabase, IEnumerable<PackageIdentity> packages)
+    private async Task CrawlPackagesAsync(
+        NuGetUsageDatabase usageDatabase,
+        IEnumerable<PackageIdentity> packages,
+        List<PackageIdentity>? skippedPackages,
+        CancellationToken cancellationToken)
     {
-        var numberOfWorkers = Environment.ProcessorCount;
-        Console.WriteLine($"Crawling using {numberOfWorkers} workers.");
+        var preProcessed = new HashSet<PackageIdentity>();
 
-        Console.WriteLine("::group::Crawling");
+        const int BatchSize = 2000;
+        var countdown = BatchSize;
+        var packageQueue = new ConcurrentQueue<PackageIdentity>(packages);
+        var processed = 0;
+        var skipCount = 0;
+        var remaining = packageQueue.Count;
 
-        var crawlingTimeout = TimeSpan.FromHours(5);
-        using var cts = new CancellationTokenSource(crawlingTimeout);
-        var cancellationToken = cts.Token;
+        var outputChannel = Channel.CreateBounded<PackageResult>(
+            new BoundedChannelOptions(_workerCount * 2)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            });
 
-        var inputQueue = new ConcurrentQueue<PackageIdentity>(packages);
-        var outputQueue = new BlockingCollection<PackageResults>();
+        Trace($"Spawning {_workerCount} worker(s).");
+        var tasks = new Task[_workerCount];
 
-        var workers = Enumerable.Range(0, numberOfWorkers)
-            .Select(i => Task.Run(() => CrawlWorker(i, inputQueue, outputQueue, _scratchFileProvider, cancellationToken), cancellationToken))
-            .ToArray();
-
-        var outputWorker = Task.Run(() => OutputWorker(usageDatabase, outputQueue), cancellationToken);
-
-        await Task.WhenAll(workers);
-
-        Console.WriteLine("::endgroup::");
-
-        outputQueue.CompleteAdding();
-        await outputWorker;
-
-        if (cancellationToken.IsCancellationRequested)
+        for (var i = 0; i < _workerCount; i++)
         {
-            Console.WriteLine($"Crawling interrupted because timeout of {crawlingTimeout} was exceeded.");
-            Console.WriteLine($"There are {inputQueue.Count:N0} items left to index.");
+            tasks[i] = CrawlPackageWorkerAsync(packageQueue, preProcessed, outputChannel, cancellationToken);
         }
 
-        _summaryTable.AppendNumber("#Packages left to index", inputQueue.Count);
+        var closeTask = Task.WhenAll(tasks).ContinueWith(
+            static (_, channel) => ((Channel<PackageResult>)channel!).Writer.Complete(),
+            outputChannel,
+            cancellationToken);
 
-        static async Task CrawlWorker(int workerId,
-                                      ConcurrentQueue<PackageIdentity> inputQueue,
-                                      BlockingCollection<PackageResults> outputQueue,
-                                      ScratchFileProvider scratchFileProvider,
-                                      CancellationToken cancellationToken)
+        var reader = outputChannel.Reader;
+
+        while (true)
         {
+            if (cancellationToken.IsCancellationRequested || remaining == 0)
+                break;
+
+            PackageResult result;
+
             try
             {
-                var fileName = scratchFileProvider.GetScratchFilePath($"worker_{workerId:000}.txt");
-                File.Delete(fileName);
-
-                while (inputQueue.TryDequeue(out var packageId))
+                if (!await reader.WaitToReadAsync(cancellationToken))
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    var (exitCode, log) = await RunPackageCrawlerAsync(packageId, fileName, cancellationToken);
-
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    var collectionResults = File.Exists(fileName)
-                        ? await CollectionSetResults.LoadAsync(fileName)
-                        : CollectionSetResults.Empty;
-
-                    var results = new PackageResults(packageId, exitCode, log, collectionResults);
-                    outputQueue.Add(results, cancellationToken);
-
-                    File.Delete(fileName);
+                    Trace($"All writers have exited.");
+                    break;
                 }
 
-                Console.WriteLine($"Crawl Worker {workerId:000} has finished.");
+                result = await reader.ReadAsync(cancellationToken);
             }
-            catch (Exception ex)
+            catch (OperationCanceledException)
             {
-                Console.WriteLine("[Fatal] Crawl Worker crashed: " + ex);
-                Environment.Exit(1);
+                Trace("Exiting gracefully with work unfinished.");
+                break;
+            }
+
+            countdown--;
+            processed++;
+            remaining--;
+
+            if (result.Results is not null)
+            {
+                await usageDatabase.DeleteReferenceUnitsAsync([result.Identity]);
+                await usageDatabase.AddReferenceUnitAsync(result.Identity, UsageCollectorSet.CurrentVersion);
+
+                foreach (var featureSet in result.Results.FeatureSets)
+                foreach (var feature in featureSet.Features)
+                {
+                    await usageDatabase.TryAddFeatureAsync(feature, featureSet.Version);
+                    await usageDatabase.AddUsageAsync(result.Identity, feature);
+                }
+            }
+            else if (skippedPackages is not null)
+            {
+                skippedPackages.Add(result.Identity);
+                skipCount++;
+            }
+
+            if (--countdown == 0)
+            {
+                countdown = BatchSize;
+
+                Trace($"Processed {processed} packages. {skipCount} skipped, approx {packageQueue.Count} remain.");
             }
         }
 
-        static async Task OutputWorker(NuGetUsageDatabase database,
-                                       BlockingCollection<PackageResults> queue)
+        Trace($"Done. Processed {processed} packages. {skipCount} skipped.");
+    }
+
+    private static async Task CrawlPackageWorkerAsync(
+        ConcurrentQueue<PackageIdentity> packageQueue,
+        HashSet<PackageIdentity> preProcessed,
+        Channel<PackageResult> outputChannel,
+        CancellationToken cancellationToken)
+    {
+        var workerId = Interlocked.Increment(ref s_workerStartedCount);
+        var writer = outputChannel.Writer;
+
+        Trace($"Starting worker {workerId}");
+
+        while (!cancellationToken.IsCancellationRequested && packageQueue.TryDequeue(out var packageId))
         {
+            if (preProcessed.Contains(packageId))
+            {
+                continue;
+            }
+
             try
             {
-                foreach (var (packageIdentity, exitCode, logLines, collectionSetResults) in queue.GetConsumingEnumerable())
-                {
-                    if (exitCode != 0)
-                    {
-                        foreach (var line in logLines)
-                            Console.WriteLine($"[Crawler] {line}");
-                    }
-
-                    await database.DeleteReferenceUnitsAsync([packageIdentity]);
-                    await database.AddReferenceUnitAsync(packageIdentity, UsageCollectorSet.CurrentVersion);
-
-                    foreach (var featureSet in collectionSetResults.FeatureSets)
-                    foreach (var feature in featureSet.Features)
-                    {
-                        await database.TryAddFeatureAsync(feature, featureSet.Version);
-                        await database.AddUsageAsync(packageIdentity, feature);
-                    }
-                }
-
-                Console.WriteLine("Output Worker has finished.");
+                var results = await PackageCrawler.CrawlAsync(NuGetFeed.NuGetOrg, packageId, cancellationToken);
+                await writer.WriteAsync(new PackageResult(packageId, results), cancellationToken);
             }
-            catch (Exception ex)
+            catch (Exception e)
             {
-                Console.WriteLine("[Fatal] Output Worker crashed: " + ex);
-                Environment.Exit(1);
-            }
-        }
-    }
-
-    private async Task<IReadOnlyList<PackageIdentity>> GetAllPackagesAsync()
-    {
-        var result = await NuGetFeed.NuGetOrg.GetAllPackages();
-
-        // The NuGet package list crawler allocates a ton of memory because it fans out pretty hard.
-        // Let's make sure we're releasing as much memory as can so that the processes we're about
-        // to spin up got more memory to play with.
-
-        GC.WaitForPendingFinalizers();
-        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
-        GC.WaitForPendingFinalizers();
-        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
-
-        return result;
-    }
-
-    private static IReadOnlyList<PackageIdentity> CollapseToLatestStableAndLatestPreview(IEnumerable<PackageIdentity> packages)
-    {
-        var result = new List<PackageIdentity>();
-
-        foreach (var pg in packages.GroupBy(p => p.Id))
-        {
-            var latestStable = pg.Where(p => !p.Version.IsPrerelease).MaxBy(p => p.Version);
-            var latestPreview = pg.Where(p => p.Version.IsPrerelease).MaxBy(p => p.Version);
-
-            if (latestStable is not null)
-                result.Add(latestStable);
-
-            if (latestPreview is not null)
-            {
-                if (latestStable is null || latestStable.Version < latestPreview.Version)
-                    result.Add(latestPreview);
+                Trace($"Error while processing {packageId}: {e.Message}");
+                await writer.WriteAsync(new PackageResult(packageId, null), cancellationToken);
             }
         }
 
-        return result.ToArray();
+        Trace($"Worker {workerId} finished");
     }
-
-    private static async Task<(int ExitCode, IReadOnlyList<string> OutputLines)> RunPackageCrawlerAsync(PackageIdentity packageId, string fileName, CancellationToken cancellationToken)
-    {
-        using var process = new Process();
-        process.StartInfo = new ProcessStartInfo
-        {
-            FileName = Environment.ProcessPath!,
-            ArgumentList =
-            {
-                "crawl-package",
-                "-n",
-                packageId.Id,
-                "-v",
-                packageId.Version.ToString(),
-                "-o",
-                fileName
-            },
-            WorkingDirectory = Environment.CurrentDirectory,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            UseShellExecute = false
-        };
-
-        var processLog = new List<string>();
-        var processLogLock = new object();
-
-        process.ErrorDataReceived += OnDataReceived;
-        process.OutputDataReceived += OnDataReceived;
-
-        process.Start();
-        process.BeginErrorReadLine();
-        process.BeginOutputReadLine();
-
-        await process.WaitForExitAsync(cancellationToken);
-
-        if (cancellationToken.IsCancellationRequested)
-        {
-            process.Kill();
-            processLog.Add("Crawling cancelled.");
-            return (1, processLog);
-        }
-
-        processLog.Add($"Exit code = {process.ExitCode}");
-        return (process.ExitCode, processLog);
-
-        void OnDataReceived(object sender, DataReceivedEventArgs e)
-        {
-            if (e.Data is null)
-                return;
-
-            lock (processLogLock)
-                processLog.Add(e.Data);
-        }
-    }
-
-    private record PackageResults(PackageIdentity PackageIdentity, int ExitCode, IReadOnlyCollection<string> Log, CollectionSetResults CollectionSetResults);
 }

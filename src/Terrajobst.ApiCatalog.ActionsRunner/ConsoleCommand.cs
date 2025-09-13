@@ -12,5 +12,5 @@ public abstract class ConsoleCommand
     {
     }
 
-    public abstract Task ExecuteAsync();
+    public abstract Task ExecuteAsync(CancellationToken cancellationToken);
 }

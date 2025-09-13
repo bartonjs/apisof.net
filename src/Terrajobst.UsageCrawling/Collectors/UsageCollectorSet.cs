@@ -1,5 +1,4 @@
 ﻿using System.Collections.Immutable;
-using Microsoft.Cci;
 
 namespace Terrajobst.UsageCrawling.Collectors;
 
@@ -22,13 +21,12 @@ public sealed class UsageCollectorSet
 
     public ImmutableArray<UsageCollector> Collectors { get; }
 
-    public void Collect(IAssembly assembly, AssemblyContext assemblyContext)
+    public void Collect(LibraryReader libraryReader, AssemblyContext assemblyContext)
     {
-        ThrowIfNull(assembly);
-        ThrowIfNull(assemblyContext);
+        ThrowIfNull(libraryReader);
 
         foreach (var collector in Collectors)
-            collector.Collect(assembly, assemblyContext);
+            collector.Collect(libraryReader, assemblyContext);
     }
 
     public CollectionSetResults GetResults()

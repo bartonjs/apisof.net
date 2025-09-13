@@ -1,7 +1,5 @@
 ﻿using System.Collections.Concurrent;
 
-using Microsoft.Cci.Extensions;
-
 using NuGet.Frameworks;
 using Terrajobst.ApiCatalog;
 using Terrajobst.UsageCrawling;
@@ -39,23 +37,31 @@ internal static class ApiChecker
 
         Parallel.ForEach(filePaths, filePath =>
         {
-            using var env = new HostEnvironment();
-            var assembly = env.LoadAssemblyFrom(filePath);
-            var assemblyName = assembly is not null
-                                ? assembly.Name.Value
-                                : Path.GetFileName(filePath);
-            if (assembly is null)
+            string assemblyName;
+
+            if (LibraryReader.TryOpen(filePath, out var libraryReader))
+            {
+                assemblyName = libraryReader.MetadataReader.GetString(
+                    libraryReader.MetadataReader.GetAssemblyDefinition().Name);
+            }
+            else
+            {
+                assemblyName = Path.GetFileName(filePath);
+            }
+
+            if (libraryReader is null)
             {
                 var result = new AssemblyResult(assemblyName, "Not a valid .NET assembly", Array.Empty<ApiResult>());
                 resultSink.Add(result);
             }
             else
             {
-                var assemblyTfm = assembly.GetTargetFrameworkMoniker();
-                var assemblyFramework = string.IsNullOrEmpty(assemblyTfm) ? null : NuGetFramework.Parse(assemblyTfm);
+                //var assemblyTfm = libraryReader.GetTargetFrameworkMoniker();
+                //var assemblyFramework = string.IsNullOrEmpty(assemblyTfm) ? null : NuGetFramework.Parse(assemblyTfm);
+                NuGetFramework? assemblyFramework = null;
 
                 var crawler = new AssemblyCrawler();
-                crawler.Crawl(assembly);
+                crawler.Crawl(libraryReader);
 
                 var crawlerResults = crawler.GetResults();
 
@@ -63,7 +69,7 @@ internal static class ApiChecker
                 var frameworkResultBuilder = new List<FrameworkResult>(frameworks.Count);
                 var platformResultBuilder = new List<PlatformResult?>(platforms.Count);
 
-                foreach (var apiKey in crawlerResults.Data.Keys)
+                foreach (var apiKey in crawlerResults.Data)
                 {
                     if (apiByGuid.TryGetValue(apiKey.Guid, out var api))
                     {

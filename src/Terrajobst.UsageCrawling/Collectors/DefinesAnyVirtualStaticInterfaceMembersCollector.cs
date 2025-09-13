@@ -1,4 +1,4 @@
-﻿using Microsoft.Cci;
+﻿using System.Reflection;
 
 namespace Terrajobst.UsageCrawling.Collectors;
 
@@ -6,20 +6,29 @@ public sealed class DefinesAnyVirtualStaticInterfaceMembersCollector : Increment
 {
     public override int VersionRequired => 2;
 
-    protected override void CollectFeatures(IAssembly assembly, AssemblyContext assemblyContext, Context context)
+    protected override void CollectFeatures(LibraryReader libraryReader, AssemblyContext assemblyContext, Context context)
     {
-        foreach (var type in assembly.GetAllTypes())
+        var metadataReader = libraryReader.MetadataReader;
+
+        foreach (var typeDefHandle in metadataReader.TypeDefinitions)
         {
-            if (!type.IsInterface)
-                continue;
+            var typeDef = metadataReader.GetTypeDefinition(typeDefHandle);
 
-            foreach (var member in type.Members)
+            if ((typeDef.Attributes & TypeAttributes.Interface) == 0)
             {
-                if (member is not IMethodDefinition method)
-                    continue;
+                continue;
+            }
 
-                if (!method.IsStatic || !method.IsVirtual)
+            foreach (var methodDefHandle in typeDef.GetMethods())
+            {
+                var methodDef = metadataReader.GetMethodDefinition(methodDefHandle);
+
+                const MethodAttributes Mask = MethodAttributes.Static | MethodAttributes.Virtual;
+
+                if ((methodDef.Attributes & Mask) != Mask)
+                {
                     continue;
+                }
 
                 context.Report(FeatureUsage.DefinesAnyVirtualStaticInterfaceMembers);
                 return;

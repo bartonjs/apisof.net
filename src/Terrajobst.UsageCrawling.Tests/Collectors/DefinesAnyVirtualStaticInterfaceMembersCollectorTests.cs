@@ -59,6 +59,32 @@ public class DefinesAnyVirtualStaticInterfaceMembersCollectorTests : CollectorTe
     }
 
     [Fact]
+    public void DefinesAnyVirtualStaticInterfaceMembers_DoesNotReport_Virtual_NonStatic_Methods()
+    {
+        var source =
+            """
+            public interface I {
+                void M() {}
+            }
+            """;
+
+        Check(source, []);
+    }
+
+    [Fact]
+    public void DefinesAnyVirtualStaticInterfaceMembers_DoesNotReport_Virtual_NonStatic_Properties()
+    {
+        var source =
+            """
+            public interface I {
+                virtual int P => 42;
+            }
+            """;
+
+        Check(source, []);
+    }
+
+    [Fact]
     public void DefinesAnyVirtualStaticInterfaceMembers_Reports_Virtual_Static_Methods()
     {
         var source =

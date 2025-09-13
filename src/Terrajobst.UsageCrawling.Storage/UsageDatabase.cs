@@ -270,10 +270,9 @@ public sealed class UsageDatabase : IDisposable
 
     public async ValueTask<bool> TryAddFeatureAsync(Guid feature, int collectorVersion = 0)
     {
-        if (_featureIdMap.Contains(feature))
+        if (!_featureIdMap.TryAdd(feature, out var featureId))
             return false;
 
-        var featureId = _featureIdMap.Add(feature);
         await _insertFeatureCommand.ExecuteAsync(featureId, feature, collectorVersion);
         return true;
     }
@@ -342,8 +341,14 @@ public sealed class UsageDatabase : IDisposable
 
         await foreach (var item in results)
         {
-            var feature = _featureIdMap.GetValue(item.FeatureId);
-            result.Add((feature, item.Percentage));
+            if (_featureIdMap.TryGetValue(item.FeatureId, out var feature))
+            {
+                result.Add((feature, item.Percentage));
+            }
+            else
+            {
+                Console.WriteLine($"Could not find feature {item.FeatureId}");
+            }
         }
 
         await _connection.ExecuteAsync(

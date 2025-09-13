@@ -22,10 +22,12 @@ internal sealed class NuGetFeed
 
     public string FeedUrl { get; }
 
-    public async Task<IReadOnlyList<PackageIdentity>> GetAllPackages(DateTimeOffset? since = null)
+    public async Task<IReadOnlyList<PackageIdentity>> GetAllPackages(
+        DateTimeOffset? since = null,
+        CancellationToken cancellationToken = default)
     {
         var sourceRepository = Repository.Factory.GetCoreV3(FeedUrl);
-        var serviceIndex = await sourceRepository.GetResourceAsync<ServiceIndexResourceV3>();
+        var serviceIndex = await sourceRepository.GetResourceAsync<ServiceIndexResourceV3>(cancellationToken);
         var catalogIndexUrl = serviceIndex.GetServiceEntryUri("Catalog/3.0.0")?.ToString();
 
         if (catalogIndexUrl is null)
@@ -43,12 +45,13 @@ internal sealed class NuGetFeed
         };
         using var httpClient = new HttpClient(handler);
 
-        var indexString = await httpClient.GetStringAsync(catalogIndexUrl);
+        var indexString = await httpClient.GetStringAsync(catalogIndexUrl, cancellationToken);
         var index = JsonConvert.DeserializeObject<CatalogIndex>(indexString)!;
 
         // Find all pages in the catalog index.
         var pageItems = new ConcurrentBag<CatalogPage>(index.Items);
         var catalogLeaves = new ConcurrentBag<CatalogLeaf>();
+        var deletions = new ConcurrentBag<CatalogLeaf>();
 
         var fetchLeafsTasks = RunInParallel(async () =>
         {
@@ -62,13 +65,18 @@ internal sealed class NuGetFeed
                 try
                 {
                     // Download the catalog page and deserialize it.
-                    var pageString = await httpClient.GetStringAsync(pageItem.Url);
+                    var pageString = await httpClient.GetStringAsync(pageItem.Url, cancellationToken);
                     var page = JsonConvert.DeserializeObject<CatalogPage>(pageString)!;
 
                     foreach (var pageLeafItem in page.Items)
                     {
+                        //if (!pageLeafItem.Id.StartsWith("Z."))
+                        //    continue;
+
                         if (pageLeafItem.Type == "nuget:PackageDetails")
                             catalogLeaves.Add(pageLeafItem);
+                        else if (pageLeafItem.Type == "nuget:PackageDelete")
+                            deletions.Add(pageLeafItem);
                     }
                 }
                 catch (Exception ex) when (retryCount > 0)
@@ -82,9 +90,15 @@ internal sealed class NuGetFeed
 
         await Task.WhenAll(fetchLeafsTasks);
 
-        return catalogLeaves
-            .Select(l => new PackageIdentity(l.Id, NuGetVersion.Parse(l.Version)))
-            .Distinct()
+        var netResult = new HashSet<PackageIdentity>(
+            catalogLeaves.Select(l => new PackageIdentity(l.Id, NuGetVersion.Parse(l.Version))));
+
+        foreach (var deletion in deletions)
+        {
+            netResult.Remove(new PackageIdentity(deletion.Id, NuGetVersion.Parse(deletion.Version)));
+        }
+
+        return netResult
             .OrderBy(p => p.Id)
             .ThenBy(p => p.Version)
             .ToArray();
@@ -97,15 +111,21 @@ internal sealed class NuGetFeed
         }
     }
 
-    public async Task<PackageArchiveReader> GetPackageAsync(PackageIdentity identity)
+    public async Task<PackageArchiveReader> GetPackageAsync(PackageIdentity identity, CancellationToken cancellationToken)
     {
         ThrowIfNull(identity);
 
         var url = await GetPackageUrlAsync(identity);
 
         using var httpClient = new HttpClient();
-        var nupkgStream = await httpClient.GetStreamAsync(url);
-        return new PackageArchiveReader(nupkgStream);
+        httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+        using (CancellationTokenSource cts = new(TimeSpan.FromSeconds(30)))
+        using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, cancellationToken))
+        {
+            var nupkgStream = await httpClient.GetStreamAsync(url, linkedCts.Token);
+            return new PackageArchiveReader(nupkgStream);
+        }
     }
 
     private async Task<string> GetPackageUrlAsync(PackageIdentity identity)

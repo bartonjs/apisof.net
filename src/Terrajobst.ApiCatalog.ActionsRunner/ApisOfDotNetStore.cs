@@ -61,9 +61,9 @@ public sealed class ApisOfDotNetStore
         return null;
     }
 
-    public async Task UploadAsync(string blobContainer, string blobName, string fileName)
+    public async Task UploadAsync(string blobContainer, string blobName, string fileName, bool overrideDevelopment=false)
     {
-        if (_hostEnvironment.IsDevelopment())
+        if (_hostEnvironment.IsDevelopment() && !overrideDevelopment)
         {
             Console.WriteLine($"Upload of {blobContainer}/{blobName} suppressed for development.");
             return;
@@ -76,9 +76,9 @@ public sealed class ApisOfDotNetStore
         await blobClient.UploadAsync(fileName, overwrite: true);
     }
 
-    public async Task UploadAsync(string blobContainer, string blobName, Stream stream)
+    public async Task UploadAsync(string blobContainer, string blobName, Stream stream, bool overrideDevelopment = false)
     {
-        if (_hostEnvironment.IsDevelopment())
+        if (_hostEnvironment.IsDevelopment() && !overrideDevelopment)
         {
             Console.WriteLine($"Upload of {blobContainer}/{blobName} suppressed for development.");
             return;
@@ -118,6 +118,29 @@ public sealed class ApisOfDotNetStore
         var blobClient = new BlobClient(connectionString, blobContainer, blobName, options: GetBlobOptions());
         var props = await blobClient.GetPropertiesAsync();
         var lastModified = props.Value.LastModified;
+        await blobClient.DownloadToAsync(fileName);
+        File.SetLastWriteTimeUtc(fileName, lastModified.UtcDateTime);
+    }
+
+    public async Task DownloadToIfNewerAsync(string blobContainer, string blobName, string fileName)
+    {
+        var name = Path.GetFileName(fileName);
+        Console.WriteLine($"Considering {name}...");
+
+        var connectionString = _options.Value.AzureStorageConnectionString;
+        var blobClient = new BlobClient(connectionString, blobContainer, blobName, options: GetBlobOptions());
+        var props = await blobClient.GetPropertiesAsync();
+        var lastModified = props.Value.LastModified;
+
+        var currentFileInfo = new FileInfo(fileName);
+
+        if (currentFileInfo.Exists && currentFileInfo.LastWriteTimeUtc >= lastModified.UtcDateTime)
+        {
+            Console.WriteLine($"Skipping download of {name} because it's up to date.");
+            return;
+        }
+
+        Console.WriteLine($"Downloading {name}...");
         await blobClient.DownloadToAsync(fileName);
         File.SetLastWriteTimeUtc(fileName, lastModified.UtcDateTime);
     }

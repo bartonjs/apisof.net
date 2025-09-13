@@ -1,5 +1,4 @@
-﻿using Microsoft.Cci;
-
+﻿
 namespace Terrajobst.UsageCrawling.Collectors;
 
 public sealed class ApiUsageCollector : UsageCollector
@@ -8,12 +7,12 @@ public sealed class ApiUsageCollector : UsageCollector
 
     public override int VersionRequired => 1;
 
-    public override void Collect(IAssembly assembly, AssemblyContext assemblyContext)
+    public override void Collect(LibraryReader libraryReader, AssemblyContext assemblyContext)
     {
-        ThrowIfNull(assembly);
+        ThrowIfNull(libraryReader);
         ThrowIfNull(assemblyContext);
 
-        _crawler.Crawl(assembly);
+        _crawler.Crawl(libraryReader);
     }
 
     public override IEnumerable<FeatureUsage> GetResults()
@@ -21,7 +20,8 @@ public sealed class ApiUsageCollector : UsageCollector
         var crawlerResults = _crawler.GetResults();
         var result = new FeatureUsage[crawlerResults.Data.Count];
         var index = 0;
-        foreach (var key in crawlerResults.Data.Keys)
+
+        foreach (var key in crawlerResults.Data)
         {
             result[index] = FeatureUsage.ForApi(key);
             index++;

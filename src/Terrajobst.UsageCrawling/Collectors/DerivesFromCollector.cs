@@ -1,5 +1,4 @@
-﻿using Microsoft.Cci;
-using Microsoft.Cci.Extensions;
+﻿using System.Reflection.Metadata;
 
 namespace Terrajobst.UsageCrawling.Collectors;
 
@@ -7,27 +6,46 @@ public sealed class DerivesFromCollector : IncrementalUsageCollector
 {
     public override int VersionRequired => 4;
 
-    protected override void CollectFeatures(IAssembly assembly, AssemblyContext assemblyContext, Context context)
+    protected override void CollectFeatures(LibraryReader libraryReader, AssemblyContext assemblyContext, Context context)
     {
-        foreach (var type in assembly.GetAllTypes())
-        {
-            var baseClass = type.BaseClasses.SingleOrDefault();
-            ReportContext(context, baseClass);
+        var metadataReader = libraryReader.MetadataReader;
 
-            foreach (var @interface in type.Interfaces)
-                ReportContext(context, @interface);
+        foreach (var typeDefHandle in metadataReader.TypeDefinitions)
+        {
+            var typeDef = metadataReader.GetTypeDefinition(typeDefHandle);
+            ReportContext(context, typeDef.BaseType, metadataReader);
+
+            foreach (var interfaceImplHandle in typeDef.GetInterfaceImplementations())
+            {
+                var interfaceImpl = metadataReader.GetInterfaceImplementation(interfaceImplHandle);
+                ReportContext(context, interfaceImpl.Interface, metadataReader);
+            }
         }
     }
 
-    private static void ReportContext(Context context, ITypeReference? baseType)
+    private static void ReportContext(Context context, EntityHandle baseTypeHandle, MetadataReader metadataReader)
     {
-        if (baseType is null or Dummy)
+        if (baseTypeHandle.IsNil)
+        {
             return;
+        }
 
-        if (baseType.IsDefinedInCurrentAssembly())
+        if (baseTypeHandle.Kind == HandleKind.TypeSpecification)
+        {
+            baseTypeHandle =
+                MetadataUtils.GetTypeSpecTarget((TypeSpecificationHandle)baseTypeHandle, metadataReader);
+        }
+
+        if (baseTypeHandle.Kind != HandleKind.TypeReference)
+        {
             return;
+        }
 
-        var docId = baseType.UnWrap().DocId();
-        context.Report(FeatureUsage.ForDerivesFrom(docId));
+        var docId = MetadataUtils.GetDocumentationId((TypeReferenceHandle)baseTypeHandle, metadataReader);
+
+        if (docId is not null)
+        {
+            context.Report(FeatureUsage.ForDerivesFrom(docId));
+        }
     }
 }

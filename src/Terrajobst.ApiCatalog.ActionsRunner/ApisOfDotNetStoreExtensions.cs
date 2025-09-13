@@ -6,15 +6,15 @@ public static class ApisOfDotNetStoreExtensions
 {
     public static Task DownloadApiCatalogAsync(this ApisOfDotNetStore store, string fileName)
     {
-        return store.DownloadToAsync("catalog", "apicatalog.dat", fileName);
+        return store.DownloadToIfNewerAsync("catalog", "apicatalog.dat", fileName);
     }
 
-    public static async Task UploadApiCatalogAsync(this ApisOfDotNetStore store, string fileName)
+    public static async Task UploadApiCatalogAsync(this ApisOfDotNetStore store, string fileName, bool overrideDevelopment = false)
     {
         await store.UploadAsync("catalog", "apicatalog.dat", fileName);
     }
 
-    public static async Task UploadSuffixTreeAsync(this ApisOfDotNetStore store, string fileName)
+    public static async Task UploadSuffixTreeAsync(this ApisOfDotNetStore store, string fileName, bool overrideDevelopment = false)
     {
         var compressedFileName = fileName + ".deflate";
         await using (var inputStream = File.OpenRead(fileName))
@@ -22,22 +22,22 @@ public static class ApisOfDotNetStoreExtensions
         await using (var deflateStream = new DeflateStream(outputStream, CompressionLevel.Optimal))
             await inputStream.CopyToAsync(deflateStream);
 
-        await store.UploadAsync("catalog", "suffixtree.dat.deflate", compressedFileName);
+        await store.UploadAsync("catalog", "suffixtree.dat.deflate", compressedFileName, overrideDevelopment);
     }
 
     public static async Task DownloadNuGetUsageDatabaseAsync(this ApisOfDotNetStore store, string fileName)
     {
-        await store.DownloadToAsync("usage", "usages-nuget.db", fileName);
+        await store.DownloadToIfNewerAsync("usage", "usages-nuget.db", fileName);
     }
 
-    public static async Task UploadNuGetUsageDatabaseAsync(this ApisOfDotNetStore store, string fileName)
+    public static async Task UploadNuGetUsageDatabaseAsync(this ApisOfDotNetStore store, string fileName, bool overrideDevelopment = false)
     {
-        await store.UploadAsync("usage", "usages-nuget.db", fileName);
+        await store.UploadAsync("usage", "usages-nuget.db", fileName, overrideDevelopment);
     }
 
-    public static async Task UploadNuGetUsageResultsAsync(this ApisOfDotNetStore store, string fileName)
+    public static async Task UploadNuGetUsageResultsAsync(this ApisOfDotNetStore store, string fileName, bool overrideDevelopment = false)
     {
-        await store.UploadAsync("usage", "usages-nuget.tsv", fileName);
+        await store.UploadAsync("usage", "usages-nuget.tsv", fileName, overrideDevelopment);
     }
 
     public static async Task<(bool, DateTimeOffset?)> DownloadPlannerUsageDatabaseAsync(this ApisOfDotNetStore store, string fileName)

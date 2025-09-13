@@ -69,6 +69,6 @@ internal sealed class ConsoleMainForCommands : IConsoleMain
             return;
         }
 
-        await command.ExecuteAsync();
+        await command.ExecuteAsync(cancellationToken);
     }
 }

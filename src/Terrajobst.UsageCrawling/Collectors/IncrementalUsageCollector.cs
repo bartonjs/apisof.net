@@ -1,18 +1,17 @@
-﻿using Microsoft.Cci;
-
+﻿
 namespace Terrajobst.UsageCrawling.Collectors;
 
 public abstract class IncrementalUsageCollector : UsageCollector
 {
     private readonly HashSet<FeatureUsage> _features = new();
 
-    public sealed override void Collect(IAssembly assembly, AssemblyContext assemblyContext)
+    public sealed override void Collect(LibraryReader libraryReader, AssemblyContext assemblyContext)
     {
-        ThrowIfNull(assembly);
+        ThrowIfNull(libraryReader);
         ThrowIfNull(assemblyContext);
 
         var context = new Context(_features);
-        CollectFeatures(assembly, assemblyContext, context);
+        CollectFeatures(libraryReader, assemblyContext, context);
     }
 
     public sealed override IEnumerable<FeatureUsage> GetResults()
@@ -20,7 +19,7 @@ public abstract class IncrementalUsageCollector : UsageCollector
         return _features;
     }
 
-    protected abstract void CollectFeatures(IAssembly assembly, AssemblyContext assemblyContext, Context context);
+    protected abstract void CollectFeatures(LibraryReader libraryReader, AssemblyContext assemblyContext, Context context);
 
     protected readonly struct Context
     {

@@ -1,5 +1,4 @@
-﻿using Microsoft.Cci;
-using Microsoft.Cci.Extensions;
+﻿using System.Reflection.Metadata;
 
 namespace Terrajobst.UsageCrawling.Collectors;
 
@@ -7,40 +6,93 @@ public sealed class ExceptionCollector : IncrementalUsageCollector
 {
     public override int VersionRequired => 4;
 
-    protected override void CollectFeatures(IAssembly assembly, AssemblyContext assemblyContext, Context context)
+    protected override void CollectFeatures(LibraryReader libraryReader, AssemblyContext assemblyContext, Context context)
     {
-        foreach (var type in assembly.GetAllTypes())
-        foreach (var method in type.Methods)
+        var metadataReader = libraryReader.MetadataReader;
+
+        foreach (var typeDefHandle in metadataReader.TypeDefinitions)
         {
-            if (method.Body is null or Dummy)
-                continue;
-
-            IOperation? previousOp = null;
-
-            foreach (var op in method.Body.Operations)
+            foreach (var methodDefHandle in libraryReader.GetTypeDefinition(typeDefHandle).GetMethods())
             {
-                if (op.OperationCode == OperationCode.Throw &&
-                    previousOp is { OperationCode: OperationCode.Newobj, Value: IMethodReference ctor })
+                if (!libraryReader.TryGetMethodBody(methodDefHandle, out var body))
                 {
-                    if (!ctor.IsDefinedInCurrentAssembly())
+                    continue;
+                }
+
+                ILOpCode prevCode = default;
+                EntityHandle prevArg = default;
+
+                foreach (var (opcode, arg) in OpCodeIterator.WalkMethod(body))
+                {
+                    if (opcode == ILOpCode.Throw && prevCode == ILOpCode.Newobj && !prevArg.IsNil)
                     {
-                        var docId = ctor.UnWrapMember().DocId();
-                        context.Report(FeatureUsage.ForExceptionThrow(docId));
+                        ReportThrow(context, metadataReader, prevArg);
+                    }
+
+                    if (opcode != ILOpCode.Nop)
+                    {
+                        prevCode = opcode;
+                        prevArg = arg;
                     }
                 }
 
-                if (op.OperationCode != OperationCode.Nop)
-                    previousOp = op;
-            }
+                foreach (var exception in body.ExceptionRegions)
+                {
+                    var catchType = exception.CatchType;
 
-            foreach (var i in method.Body.OperationExceptionInformation)
+                    if (catchType.IsNil)
+                    {
+                        continue;
+                    }
+
+                    if (catchType.Kind == HandleKind.TypeSpecification)
+                    {
+                        catchType = MetadataUtils.GetTypeSpecTarget((TypeSpecificationHandle)catchType, metadataReader);
+                    }
+                    if (catchType.Kind != HandleKind.TypeReference)
+                    {
+                        continue;
+                    }
+                    var docId = MetadataUtils.GetDocumentationId(
+                        metadataReader.GetTypeReference((TypeReferenceHandle)catchType),
+                        metadataReader);
+
+                    if (docId is not null)
+                    {
+                        context.Report(FeatureUsage.ForExceptionCatch(docId));
+                    }
+                }
+            }
+        }
+
+        static void ReportThrow(Context context, MetadataReader metadataReader, EntityHandle prevArg)
+        {
+            if (prevArg.Kind != HandleKind.MemberReference)
             {
-                if (i.ExceptionType.IsDefinedInCurrentAssembly())
-                    continue;
-
-                var docId = i.ExceptionType.UnWrap().DocId();
-                context.Report(FeatureUsage.ForExceptionCatch(docId));
+                return;
             }
+
+            var memberRef = metadataReader.GetMemberReference((MemberReferenceHandle)prevArg);
+            var parent = MetadataUtils.GetDocumentationParent(memberRef, metadataReader);
+
+            if (parent.Kind != HandleKind.TypeReference)
+            {
+                return;
+            }
+
+            if (memberRef.GetKind() != MemberReferenceKind.Method)
+            {
+                return;
+            }
+
+            var docId = MetadataUtils.GetDocumentationId(memberRef, metadataReader);
+
+            if (docId is null)
+            {
+                return;
+            }
+
+            context.Report(FeatureUsage.ForExceptionThrow(docId));
         }
     }
 }

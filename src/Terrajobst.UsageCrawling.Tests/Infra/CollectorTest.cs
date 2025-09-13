@@ -1,7 +1,4 @@
-﻿using Microsoft.Cci;
-using Microsoft.CodeAnalysis;
-
-using Terrajobst.UsageCrawling.Collectors;
+﻿using Terrajobst.UsageCrawling.Collectors;
 
 namespace Terrajobst.UsageCrawling.Tests.Infra;
 
@@ -28,10 +25,12 @@ public abstract class CollectorTest<TCollector>
         ThrowIfNull(expectedUsages);
 
         var assembly = new AssemblyBuilder()
-            .SetAssembly(source)
-            .ToAssembly();
-
-        Check(assembly, expectedUsages);
+            .SetAssembly(source);
+            
+        using (var peReader = assembly.ToPEReader())
+        {
+            Check(new LibraryReader(peReader), expectedUsages);
+        }
     }
 
     protected void Check(string dependencySource, string source, IEnumerable<FeatureUsage> expectedUsages)
@@ -42,21 +41,23 @@ public abstract class CollectorTest<TCollector>
 
         var assembly = new AssemblyBuilder()
             .SetAssembly(source)
-            .AddDependency(dependencySource)
-            .ToAssembly();
+            .AddDependency(dependencySource);
 
-        Check(assembly, expectedUsages);
+        using (var reader = assembly.ToPEReader())
+        {
+            Check(new LibraryReader(reader), expectedUsages);
+        }
     }
 
-    protected void Check(IAssembly assembly, IEnumerable<FeatureUsage> expectedUsages)
+    protected void Check(LibraryReader libraryReader, IEnumerable<FeatureUsage> expectedUsages)
     {
-        Check(assembly, AssemblyContext.Empty, expectedUsages);
+        Check(libraryReader, AssemblyContext.Empty, expectedUsages);
     }
 
-    protected void Check(IAssembly assembly, AssemblyContext assemblyContext, IEnumerable<FeatureUsage> expectedUsages)
+    protected void Check(LibraryReader libraryReader, AssemblyContext assemblyContext, IEnumerable<FeatureUsage> expectedUsages)
     {
         var collector = new TCollector();
-        collector.Collect(assembly, assemblyContext);
+        collector.Collect(libraryReader, assemblyContext);
 
         var expectedFeaturesOrdered = expectedUsages.OrderBy(u => u.FeatureId);
         var actualResultsOrdered = collector.GetResults().Where(Include).OrderBy(u => u.FeatureId);

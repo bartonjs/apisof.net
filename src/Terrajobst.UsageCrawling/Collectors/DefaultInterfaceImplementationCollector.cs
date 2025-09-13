@@ -1,5 +1,5 @@
-﻿using Microsoft.Cci;
-using Microsoft.Cci.Extensions;
+﻿using System.Reflection;
+using System.Reflection.Metadata;
 
 namespace Terrajobst.UsageCrawling.Collectors;
 
@@ -7,18 +7,39 @@ public sealed class DefaultInterfaceImplementationCollector : IncrementalUsageCo
 {
     public override int VersionRequired => 4;
 
-    protected override void CollectFeatures(IAssembly assembly, AssemblyContext assemblyContext, Context context)
+    protected override void CollectFeatures(LibraryReader libraryReader, AssemblyContext assemblyContext, Context context)
     {
-        foreach (var type in assembly.GetAllTypes())
+        var metadataReader = libraryReader.MetadataReader;
+
+        foreach (var typeDefHandle in metadataReader.TypeDefinitions)
         {
-            if (!type.IsInterface) continue;
+            var typeDef = metadataReader.GetTypeDefinition(typeDefHandle);
 
-            foreach (var implementation in type.ExplicitImplementationOverrides)
+            if ((typeDef.Attributes & TypeAttributes.Interface) == 0)
             {
-                if (implementation.ImplementedMethod.IsDefinedInCurrentAssembly())
-                    continue;
+                continue;
+            }
 
-                var docId = implementation.ImplementedMethod.UnWrapMember().DocId();
+            foreach (var methodImplHandle in typeDef.GetMethodImplementations())
+            {
+                var methodImpl = metadataReader.GetMethodImplementation(methodImplHandle);
+
+                var declHandle = methodImpl.MethodDeclaration;
+
+                if (declHandle.Kind != HandleKind.MemberReference)
+                {
+                    continue;
+                }
+
+                var docId = MetadataUtils.GetDocumentationId(
+                    metadataReader.GetMemberReference((MemberReferenceHandle)declHandle),
+                    metadataReader);
+
+                if (docId is null)
+                {
+                    continue;
+                }
+
                 var key = new ApiKey(docId);
                 var metric = FeatureUsage.ForDim(key);
                 context.Report(metric);

@@ -1,183 +1,402 @@
-﻿using Microsoft.Cci;
-using Microsoft.Cci.Extensions;
+﻿using System.Collections.Immutable;
+using System.Reflection.Metadata;
+
+using PrimitiveTypeCode = System.Reflection.Metadata.PrimitiveTypeCode;
 
 namespace Terrajobst.UsageCrawling;
 
 public sealed class AssemblyCrawler
 {
-    private readonly Dictionary<ApiKey, int> _results = new();
+    private readonly HashSet<ApiKey> _results = new();
+    private MetadataReader _metadataReader = null!;
+    private SignatureWalker _signatureWalker = null!;
+    private int _crawlDepth;
 
     public CrawlerResults GetResults()
     {
         return new CrawlerResults(_results);
     }
 
-    public void Crawl(IAssembly assembly)
+    public void Crawl(LibraryReader libraryReader)
     {
-        ThrowIfNull(assembly);
+        ThrowIfNull(libraryReader);
 
-        CrawlAttributes(assembly.Attributes);
-        CrawlAttributes(assembly.ModuleAttributes);
+        _signatureWalker = new SignatureWalker(this);
+        var metadataReader = libraryReader.MetadataReader;
+        _metadataReader = metadataReader;
+        var assembly = metadataReader.GetAssemblyDefinition();
+        CrawlAttributes(assembly.GetCustomAttributes());
 
-        foreach (var type in assembly.GetAllTypes())
-            CrawlType(type);
+        foreach (var memberRef in metadataReader.MemberReferences)
+        {
+            Record(memberRef);
+        }
+
+        foreach (var typeRef in metadataReader.TypeReferences)
+        {
+            Record(typeRef);
+        }
+
+        foreach (var typeHandle in metadataReader.TypeDefinitions)
+        {
+            CrawlType(typeHandle);
+        }
     }
 
-    private void CrawlAttributes(IEnumerable<ICustomAttribute> attributes)
+    private void CrawlAttributes(CustomAttributeHandleCollection attributes)
     {
-        foreach (var attribute in attributes)
+        var metadataReader = _metadataReader;
+
+        foreach (var attrHandle in attributes)
         {
-            Record(attribute.Type);
-            Record(attribute.Constructor);
+            var attr = metadataReader.GetCustomAttribute(attrHandle);
 
-            var typeComponent = attribute.Type.UnWrap().UniqueId()[2..];
+            // The ctor will be recorded from the MemberRef table
 
-            foreach (var x in attribute.NamedArguments)
+            if (attr.Constructor.Kind == HandleKind.MemberReference)
             {
-                var fieldId = $"F:{typeComponent}.{x.ArgumentName.Value}";
-                var propertyId = $"P:{typeComponent}.{x.ArgumentName.Value}";
-                Record(fieldId);
-                Record(propertyId);
+                var memberRef = metadataReader.GetMemberReference((MemberReferenceHandle)attr.Constructor);
+
+                if (memberRef.Parent.Kind != HandleKind.TypeReference)
+                    continue;
+
+                string? fieldPrefix = null;
+                string? propPrefix = null;
+                var parent = (TypeReferenceHandle)memberRef.Parent;
+
+                foreach (var namedValue in AttributeValueIterator.EnumerateNamedArguments(metadataReader, attr))
+                {
+                    string? prefix;
+
+                    switch (namedValue.Kind)
+                    {
+                        case CustomAttributeNamedArgumentKind.Field:
+                            if (fieldPrefix is null)
+                            {
+                                var parentName = MetadataUtils.GetName(parent, metadataReader);
+
+                                if (parentName is not null)
+                                {
+                                    fieldPrefix = "F:" + parentName + ".";
+                                }
+                            }
+
+                            prefix = fieldPrefix;
+                            break;
+                        case CustomAttributeNamedArgumentKind.Property:
+                            if (propPrefix is null)
+                            {
+                                var parentName = MetadataUtils.GetName(parent, metadataReader);
+
+                                if (parentName is not null)
+                                {
+                                    propPrefix = "P:" + parentName + ".";
+                                }
+                            }
+
+                            prefix = propPrefix;
+                            break;
+                        default:
+                            throw new BadImageFormatException();
+                    }
+                    
+                    if (prefix is not null)
+                        Record(prefix + namedValue.Name);
+                }
             }
         }
     }
 
-    private void CrawlType(ITypeDefinition type)
+    private void CrawlType(TypeDefinitionHandle typeHandle)
     {
+        var reader = _metadataReader;
+        var type = reader.GetTypeDefinition(typeHandle);
+
         if (IsIgnored(type))
             return;
 
-        CrawlAttributes(type.Attributes);
+        CrawlAttributes(type.GetCustomAttributes());
 
-        foreach (var b in type.BaseClasses)
-            Record(b);
+        // The base type, and interfaces, will have been reported from the typeref table,
+        // if appropriate.
 
-        foreach (var i in type.Interfaces)
-            Record(i);
-
-        foreach (var member in type.Members)
-            CrawlMember(member);
-    }
-
-    private void CrawlMember(ITypeDefinitionMember member)
-    {
-        switch (member)
+        foreach (var fieldHandle in type.GetFields())
         {
-            case ITypeDefinition type:
-                CrawlType(type);
-                break;
-            case IMethodDefinition m:
-                CrawlMethod(m);
-                break;
-            case IFieldDefinition f:
-                CrawlField(f);
-                break;
-            case IPropertyDefinition p:
-                CrawlProperty(p);
-                break;
-            case IEventDefinition e:
-                CrawlEvent(e);
-                break;
+            CrawlField(reader.GetFieldDefinition(fieldHandle));
+        }
+
+        foreach (var methodDefHandle in type.GetMethods())
+        {
+            CrawlMethod(reader.GetMethodDefinition(methodDefHandle));
+        }
+
+        foreach (var propHandle in type.GetProperties())
+        {
+            CrawlProperty(reader.GetPropertyDefinition(propHandle));
+        }
+
+        foreach (var eventHandle in type.GetEvents())
+        {
+            CrawlEvent(reader.GetEventDefinition(eventHandle));
+        }
+
+        foreach (var nestedHandle in type.GetNestedTypes())
+        {
+            CrawlType(nestedHandle);
         }
     }
 
-    private void CrawlMethod(IMethodDefinition m)
+    private void CrawlMethod(MethodDefinitionHandle methodDefHandle, bool skipAttributes = false)
     {
-        CrawlAttributes(m.Attributes);
-        CrawlParameters(m.Parameters);
-        Record(m.Type);
+        CrawlMethod(_metadataReader.GetMethodDefinition(methodDefHandle), skipAttributes);
+    }
 
-        foreach (var op in m.Body.Operations)
+    private void CrawlMethod(MethodDefinition methodDef, bool skipAttributes = false)
+    {
+        if (!skipAttributes)
         {
-            switch (op.Value)
-            {
-                case ITypeReference opT:
-                    Record(opT);
-                    break;
-                case ITypeMemberReference opM:
-                    Record(opM);
-                    break;
-            }
+            CrawlAttributes(methodDef.GetCustomAttributes());
         }
     }
 
-    private void CrawlParameters(IEnumerable<IParameterDefinition> parameters)
+    private void CrawlField(FieldDefinition field)
     {
-        foreach (var parameter in parameters)
+        using var _ = DepthGuard.Enter(this);
+        CrawlAttributes(field.GetCustomAttributes());
+        field.DecodeSignature(_signatureWalker, genericContext: null);
+    }
+
+    private void CrawlProperty(PropertyDefinition p)
+    {
+        using var _ = DepthGuard.Enter(this);
+        CrawlAttributes(p.GetCustomAttributes());
+        p.DecodeSignature(_signatureWalker, genericContext: null);
+
+        var accessors = p.GetAccessors();
+        CrawlMethod(accessors.Getter);
+        CrawlMethod(accessors.Setter);
+
+        foreach (var otherHandle in accessors.Others)
         {
-            CrawlAttributes(parameter.Attributes);
-            Record(parameter.Type);
+            CrawlMethod(otherHandle);
         }
     }
 
-    private void CrawlField(IFieldDefinition f)
+    private void CrawlEvent(EventDefinition e)
     {
-        CrawlAttributes(f.Attributes);
-        Record(f.Type);
-    }
-
-    private void CrawlProperty(IPropertyDefinition p)
-    {
-        CrawlAttributes(p.Attributes);
-        CrawlParameters(p.Parameters);
-        Record(p.Type);
-    }
-
-    private void CrawlEvent(IEventDefinition e)
-    {
-        CrawlAttributes(e.Attributes);
+        using var _ = DepthGuard.Enter(this);
+        CrawlAttributes(e.GetCustomAttributes());
         Record(e.Type);
+
+        var accessors = e.GetAccessors();
+        CrawlMethod(accessors.Adder);
+        CrawlMethod(accessors.Remover);
+
+        foreach (var otherHandle in accessors.Others)
+        {
+            CrawlMethod(otherHandle);
+        }
     }
 
-    private static bool IsIgnored(ITypeDefinition type)
+    private bool IsIgnored(TypeDefinition type)
     {
-        if (type.Attributes.Any(a => a.Type.FullName() == "Microsoft.CodeAnalysis.EmbeddedAttribute"))
-            return true;
+        var metadataReader = _metadataReader;
+
+        foreach (var attrHandle in type.GetCustomAttributes())
+        {
+            if (MetadataUtils.IsNamed(attrHandle, metadataReader, "Microsoft.CodeAnalysis", "EmbeddedAttribute"))
+                return true;
+        }
 
         return false;
     }
 
-    private void Record(ITypeReference type)
+    private void Record(TypeReferenceHandle typeHandle)
     {
-        if (type is IArrayTypeReference array)
-        {
-            Record(array.ElementType);
-            return;
-        }
-
-        if (type is IGenericTypeInstanceReference generic)
-        {
-            foreach (var argument in generic.GenericArguments)
-                Record(argument);
-        }
-
-        if (type.ResolvedType.IsDefinedInCurrentAssembly())
-            return;
-
-        var documentationId = type.UnWrap().UniqueId();
-        Record(documentationId);
+        var metadataReader = _metadataReader;
+        var typeRef = metadataReader.GetTypeReference(typeHandle);
+        Record(MetadataUtils.GetDocumentationId(typeRef, metadataReader));
     }
 
-    private void Record(ITypeMemberReference member)
+    private void Record(EntityHandle entityHandle)
     {
-        if (member.IsDefinedInCurrentAssembly())
-            return;
-
-        if (member is ITypeReference type)
+        using var _ = DepthGuard.Enter(this);
+        switch (entityHandle.Kind)
         {
-            Record(type);
-        }
-        else
-        {
-            var documentationId = member.UnWrapMember().UniqueId();
-            Record(documentationId);
+            case HandleKind.TypeReference:
+                Record((TypeReferenceHandle)entityHandle);
+                break;
+            case HandleKind.MethodDefinition:
+                CrawlMethod((MethodDefinitionHandle)entityHandle, skipAttributes: true);
+                break;
+            case HandleKind.MemberReference:
+                Record((MemberReferenceHandle)entityHandle);
+                break;
+            case HandleKind.TypeSpecification:
+                Record((TypeSpecificationHandle)entityHandle);
+                break;
         }
     }
 
-    private void Record(string documentationId)
+    private void Record(MemberReferenceHandle memberRefHandle)
     {
+        var memberRef = _metadataReader.GetMemberReference(memberRefHandle);
+        
+        if (memberRef.Parent.Kind == HandleKind.TypeDefinition)
+            return;
+
+        // Parent will have been recorded from the typeref.
+        Record(MetadataUtils.GetDocumentationId(memberRef, _metadataReader));
+    }
+
+    private void Record(TypeSpecificationHandle typeSpecHandle)
+    {
+        var typeSpec = _metadataReader.GetTypeSpecification(typeSpecHandle);
+        CrawlAttributes(typeSpec.GetCustomAttributes());
+
+        var typeSig = typeSpec.DecodeSignature(_signatureWalker, null);
+
+        if (typeSig.Kind != HandleKind.TypeSpecification)
+            Record(typeSig);
+    }
+
+    private void Record(string? documentationId)
+    {
+        if (string.IsNullOrEmpty(documentationId))
+            return;
+
         var key = new ApiKey(documentationId);
-        _results.TryGetValue(key, out var count);
-        _results[key] = count + 1;
+        _results.Add(key);
+    }
+
+    private sealed class SignatureWalker :
+        ISignatureTypeProvider<EntityHandle, object?>
+    {
+        private readonly AssemblyCrawler _crawler;
+
+        internal SignatureWalker(AssemblyCrawler crawler)
+        {
+            _crawler = crawler;
+        }
+
+        public EntityHandle GetSZArrayType(EntityHandle elementType)
+        {
+            _crawler.Record(elementType);
+            return elementType;
+        }
+
+        public EntityHandle GetArrayType(EntityHandle elementType, ArrayShape shape)
+        {
+            _crawler.Record(elementType);
+            return elementType;
+        }
+
+        public EntityHandle GetByReferenceType(EntityHandle elementType)
+        {
+            _crawler.Record(elementType);
+            return elementType;
+        }
+
+        public EntityHandle GetGenericInstantiation(EntityHandle genericType, ImmutableArray<EntityHandle> typeArguments)
+        {
+            _crawler.Record(genericType);
+
+            foreach (var typeArg in typeArguments)
+                _crawler.Record(typeArg);
+
+            return genericType;
+        }
+
+        public EntityHandle GetPointerType(EntityHandle elementType)
+        {
+            _crawler.Record(elementType);
+            return elementType;
+        }
+
+        public EntityHandle GetPrimitiveType(PrimitiveTypeCode typeCode)
+        {
+            if (typeCode >= PrimitiveTypeCode.Void &&
+                typeCode <= PrimitiveTypeCode.Object)
+            {
+                _crawler.Record($"T:System.{typeCode}");
+            }
+
+            return default;
+        }
+
+        public EntityHandle GetTypeFromDefinition(MetadataReader reader, TypeDefinitionHandle handle, byte rawTypeKind)
+        {
+            return handle;
+        }
+
+        public EntityHandle GetTypeFromReference(MetadataReader reader, TypeReferenceHandle handle, byte rawTypeKind)
+        {
+            _crawler.Record(handle);
+            return handle;
+        }
+
+        public EntityHandle GetFunctionPointerType(MethodSignature<EntityHandle> signature)
+        {
+            foreach (var handle in signature.ParameterTypes)
+            {
+                _crawler.Record(handle);
+            }
+
+            return default;
+        }
+
+        public EntityHandle GetGenericMethodParameter(object? genericContext, int index)
+        {
+            return default;
+        }
+
+        public EntityHandle GetGenericTypeParameter(object? genericContext, int index)
+        {
+            return default;
+        }
+
+        public EntityHandle GetModifiedType(EntityHandle modifier, EntityHandle unmodifiedType, bool isRequired)
+        {
+            _crawler.Record(unmodifiedType);
+            return unmodifiedType;
+        }
+
+        public EntityHandle GetPinnedType(EntityHandle elementType)
+        {
+            _crawler.Record(elementType);
+            return elementType;
+        }
+
+        public EntityHandle GetTypeFromSpecification(
+            MetadataReader reader,
+            object? genericContext,
+            TypeSpecificationHandle handle,
+            byte rawTypeKind)
+        {
+            return handle;
+        }
+    }
+
+    private struct DepthGuard : IDisposable
+    {
+        private AssemblyCrawler _crawler;
+
+        public static DepthGuard Enter(AssemblyCrawler crawler)
+        {
+            if (crawler._crawlDepth > 100)
+                throw new NotSupportedException("Maximum recursion depth exceeded.");
+
+            crawler._crawlDepth++;
+
+            return new DepthGuard
+            {
+                _crawler = crawler,
+            };
+        }
+
+        public void Dispose()
+        {
+            _crawler._crawlDepth--;
+        }
     }
 }

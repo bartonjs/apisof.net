@@ -1,12 +1,8 @@
 ﻿using System.Collections.Concurrent;
-
-using Microsoft.Cci.Extensions;
-
 using Mono.Options;
-
 using NuGet.Frameworks;
-
 using Spectre.Console;
+using Terrajobst.UsageCrawling;
 
 internal sealed class CheckAssembliesCommand : Command
 {
@@ -70,13 +66,19 @@ internal sealed class CheckAssembliesCommand : Command
 
                     Parallel.ForEach(filePaths, filePath =>
                     {
-                        using var env = new HostEnvironment();
-                        var assembly = env.LoadAssemblyFrom(filePath);
-                        var assemblyName = assembly is not null
-                                            ? assembly.Name.Value
-                                            : Path.GetFileName(filePath);
+                        string assemblyName;
 
-                        if (assembly is null)
+                        if (LibraryReader.TryOpen(filePath, out var libraryReader))
+                        {
+                            assemblyName = libraryReader.MetadataReader.GetString(
+                                libraryReader.MetadataReader.GetAssemblyDefinition().Name);
+                        }
+                        else
+                        {
+                            assemblyName = Path.GetFileName(filePath);
+                        }
+
+                        if (libraryReader is null)
                         {
                             var issue = "Not a valid .NET assembly";
                             var results = new AssemblyResult(assemblyName, issue, null, Array.Empty<AssemblyTargetFrameworkCompatibility>());
@@ -84,7 +86,7 @@ internal sealed class CheckAssembliesCommand : Command
                         }
                         else
                         {
-                            var tfm = assembly.GetTargetFrameworkMoniker();
+                            var tfm = MetadataUtils.GetTargetFrameworkMoniker(libraryReader.MetadataReader);
                             var assemblyFramework = string.IsNullOrEmpty(tfm) ? null : NuGetFramework.Parse(tfm);
                             var assemblyFrameworkName = assemblyFramework?.GetShortFolderName();
                             var frameworkResults = targetFrameworks.Select(fx => AssemblyTargetFrameworkCompatibility.Compute(assemblyFramework, fx))

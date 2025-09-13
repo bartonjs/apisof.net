@@ -54,11 +54,11 @@ public class UsesNullableReferenceTypesCollectorTests : CollectorTest<UsesNullab
 
     private void Check(NullableMode nullableMode, string source, IEnumerable<FeatureUsage> expectedMetrics)
     {
-        var assembly = new AssemblyBuilder()
+        using var peReader = new AssemblyBuilder()
             .SetAssembly(source, transformer: c => ApplyNullableMode(c, nullableMode))
-            .ToAssembly();
+            .ToPEReader();
 
-        Check(assembly, expectedMetrics);
+        Check(new LibraryReader(peReader), expectedMetrics);
     }
 
     public enum NullableMode

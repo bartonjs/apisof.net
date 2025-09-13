@@ -1,5 +1,4 @@
-﻿using Microsoft.Cci.Extensions;
-using NuGet.Frameworks;
+﻿using NuGet.Frameworks;
 using Terrajobst.UsageCrawling;
 
 namespace Terrajobst.NetUpgradePlanner;
@@ -62,25 +61,30 @@ public sealed class AssemblySet
 
             var path = materializedPaths[i];
 
-            using var env = new HostEnvironment();
-            var assembly = env.LoadAssemblyFrom(path);
-            if (assembly is null)
+            if (!LibraryReader.TryOpen(path, out var libraryReader))
+            {
                 continue;
+            }
 
-            var tfm = assembly.GetTargetFrameworkMoniker();
+            var tfm = MetadataUtils.GetTargetFrameworkMoniker(libraryReader.MetadataReader);
             var assemblyFramework = string.IsNullOrEmpty(tfm) ? null : NuGetFramework.Parse(tfm).GetShortFolderName();
 
-            var assemblyNames = assembly.Name.Value;
+            var assemblyNames = libraryReader.MetadataReader.GetString(
+                libraryReader.MetadataReader.GetAssemblyDefinition().Name);
+
             if (!processedNames.Add(assemblyNames))
                 continue;
 
             var crawler = new AssemblyCrawler();
-            crawler.Crawl(assembly);
+            crawler.Crawl(libraryReader);
 
             var crawlerResults = crawler.GetResults();
 
-            var dependencies = assembly.AssemblyReferences.Select(ar => ar.Name.Value);
-            var usedApis = crawlerResults.Data.Select(kv => kv.Key.Guid);
+            var dependencies = libraryReader.MetadataReader.AssemblyReferences.Select(
+                libraryReader.MetadataReader.GetAssemblyReference).Select(
+                ar => libraryReader.MetadataReader.GetString(ar.Name));
+
+            var usedApis = crawlerResults.Data.Select(kv => kv.Guid);
             var entry = new AssemblySetEntry(assemblyNames, assemblyFramework, dependencies, usedApis);
             entries.Add(entry);
         }

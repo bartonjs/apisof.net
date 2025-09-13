@@ -23,7 +23,7 @@ internal sealed class CrawlPackageMain : ConsoleCommand
         options.Add("o=", "{Path} to the output file", v => _outputPath = v);
     }
 
-    public override async Task ExecuteAsync()
+    public override async Task ExecuteAsync(CancellationToken cancellationToken)
     {
         var packageIdentity = new PackageIdentity(_packageId, _packageVersion);
         await CrawlPackageAsync(packageIdentity, _outputPath);
@@ -33,7 +33,7 @@ internal sealed class CrawlPackageMain : ConsoleCommand
     {
         Console.WriteLine($"Crawling {packageId}...");
 
-        var results = await PackageCrawler.CrawlAsync(NuGetFeed.NuGetOrg, packageId);
+        var results = await PackageCrawler.CrawlAsync(NuGetFeed.NuGetOrg, packageId, default);
         await results.SaveAsync(fileName);
     }
 }

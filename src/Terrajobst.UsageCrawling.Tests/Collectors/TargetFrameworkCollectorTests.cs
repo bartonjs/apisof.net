@@ -1,7 +1,4 @@
-﻿using System.Diagnostics;
-using Basic.Reference.Assemblies;
-using Microsoft.CodeAnalysis.CSharp;
-using NuGet.Frameworks;
+﻿using NuGet.Frameworks;
 using Terrajobst.UsageCrawling.Collectors;
 using Terrajobst.UsageCrawling.Tests.Infra;
 
@@ -70,14 +67,14 @@ public class TargetFrameworkCollectorTests : CollectorTest<TargetFrameworkCollec
 
     private void Check(TargetFramework framework, NuGetFramework? assemblyContextFramework, string source, IEnumerable<FeatureUsage> expectedUsages)
     {
-        var assembly = new AssemblyBuilder()
+        using var peReader = new AssemblyBuilder()
             .SetAssembly(source, framework)
-            .ToAssembly();
+            .ToPEReader();
 
         var context = new AssemblyContext {
             Framework = assemblyContextFramework
         };
 
-        Check(assembly, context, expectedUsages);
+        Check(new LibraryReader(peReader), context, expectedUsages);
     }
 }

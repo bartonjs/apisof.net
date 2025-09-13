@@ -1,5 +1,4 @@
-﻿using Microsoft.Cci;
-using Microsoft.Cci.Extensions;
+﻿using System.Reflection.Metadata;
 
 namespace Terrajobst.UsageCrawling.Collectors;
 
@@ -7,41 +6,57 @@ public sealed class FieldAccessCollector : IncrementalUsageCollector
 {
     public override int VersionRequired => 4;
 
-    protected override void CollectFeatures(IAssembly assembly, AssemblyContext assemblyContext, Context context)
+    protected override void CollectFeatures(LibraryReader libraryReader, AssemblyContext assemblyContext, Context context)
     {
-        foreach (var type in assembly.GetAllTypes())
-        foreach (var method in type.Methods)
-        {
-            if (method.Body is null or Dummy)
-                continue;
+        var metadataReader = libraryReader.MetadataReader;
 
-            foreach (var op in method.Body.Operations)
+        foreach (var typeDefHandle in metadataReader.TypeDefinitions)
+        {
+            foreach (var methodDefHandle in libraryReader.GetTypeDefinition(typeDefHandle).GetMethods())
             {
-                switch (op.OperationCode)
+                foreach (var (opcode, arg) in OpCodeIterator.WalkMethod(libraryReader, methodDefHandle))
                 {
-                    case OperationCode.Ldsfld:
-                    case OperationCode.Ldfld:
-                        ReportReadOrWrite(context, op.Value, isRead: true);
-                        break;
-                    case OperationCode.Stsfld:
-                    case OperationCode.Stfld:
-                        ReportReadOrWrite(context, op.Value, isRead: false);
-                        break;
+                    if (arg.IsNil || arg.Kind != HandleKind.MemberReference)
+                    {
+                        continue;
+                    }
+
+                    var memberRef = metadataReader.GetMemberReference((MemberReferenceHandle)arg);
+                    var parent = MetadataUtils.GetDocumentationParent(memberRef, metadataReader);
+
+                    if (parent.IsNil || parent.Kind != HandleKind.TypeReference)
+                    {
+                        continue;
+                    }
+
+                    if (memberRef.GetKind() != MemberReferenceKind.Field)
+                    {
+                        continue;
+                    }
+
+                    switch (opcode)
+                    {
+                        case ILOpCode.Ldsfld:
+                        case ILOpCode.Ldfld:
+                            ReportReadOrWrite(context, memberRef, metadataReader, isRead: true);
+                            break;
+                        case ILOpCode.Stsfld:
+                        case ILOpCode.Stfld:
+                            ReportReadOrWrite(context, memberRef, metadataReader, isRead: false);
+                            break;
+                    }
                 }
             }
         }
     }
 
-    private static void ReportReadOrWrite(Context context, object opValue, bool isRead)
+    private static void ReportReadOrWrite(Context context, MemberReference memberRef, MetadataReader metadataReader, bool isRead)
     {
-        var field = opValue as IFieldReference;
-        if (field is null or Dummy)
+        var docId = MetadataUtils.GetDocumentationId(memberRef, metadataReader);
+
+        if (docId is null)
             return;
 
-        if (field.IsDefinedInCurrentAssembly())
-            return;
-
-        var docId = field.UnWrapMember().DocId();
         var featureUsage = isRead
             ? FeatureUsage.ForFieldRead(docId)
             : FeatureUsage.ForFieldWrite(docId);

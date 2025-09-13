@@ -1,7 +1,6 @@
-﻿using Basic.Reference.Assemblies;
+﻿using System.Reflection.PortableExecutable;
+using Basic.Reference.Assemblies;
 
-using Microsoft.Cci;
-using Microsoft.Cci.Extensions;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -34,7 +33,7 @@ public sealed class AssemblyBuilder
         return this;
     }
 
-    public IAssembly ToAssembly()
+    private (MemoryStream PEStream, CSharpCompilation Compilation) ToStream()
     {
         if (_assembly is null)
             throw new InvalidOperationException("No assembly set");
@@ -42,7 +41,7 @@ public sealed class AssemblyBuilder
         var dependencyReferences = _dependencies.Select(c => c.ToMetadataReference());
         var compilation = _assembly.AddReferences(dependencyReferences);
 
-        using var peStream = new MemoryStream();
+        var peStream = new MemoryStream();
         var result = compilation.Emit(peStream);
         if (!result.Success)
         {
@@ -52,10 +51,13 @@ public sealed class AssemblyBuilder
         }
 
         peStream.Position = 0;
+        return (peStream, compilation);
+    }
 
-        var environment = new HostEnvironment();
-        var assembly = environment.LoadAssemblyFrom(compilation.AssemblyName, peStream);
-        return assembly;
+    public PEReader ToPEReader()
+    {
+        var (peStream, _) = ToStream();
+        return new PEReader(peStream, PEStreamOptions.Default);
     }
 
     private static CSharpCompilation CreateCompilation(string source, TargetFramework framework)
@@ -102,6 +104,10 @@ public sealed class AssemblyBuilder
         "T:System.Runtime.CompilerServices.RefSafetyRulesAttribute",
         "M:System.Runtime.CompilerServices.RefSafetyRulesAttribute.#ctor(System.Int32)",
         "T:System.Diagnostics.DebuggableAttribute",
-        "M:System.Diagnostics.DebuggableAttribute.#ctor(System.Diagnostics.DebuggableAttribute.DebuggingModes)"
+        "T:System.Diagnostics.DebuggableAttribute.DebuggingModes",
+        "M:System.Diagnostics.DebuggableAttribute.#ctor(System.Diagnostics.DebuggableAttribute.DebuggingModes)",
+        "T:System.Void",
+        "T:System.Object",
+        "T:System.Int32",
     ];
 }

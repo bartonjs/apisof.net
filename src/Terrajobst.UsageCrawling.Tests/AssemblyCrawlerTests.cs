@@ -7,6 +7,38 @@ namespace Terrajobst.UsageCrawling.Tests;
 public class AssemblyCrawlerTests
 {
     [Fact]
+    public void EmptyAssembly()
+    {
+        const string source = "";
+
+        var usages = new HashSet<string>
+        {
+        };
+
+        Check(source, usages);
+    }
+
+    [Fact]
+    public void StructsOnly()
+    {
+        const string source =
+            """
+            public struct Foo
+            {
+                public int X;
+                public int Y;
+            }
+            """;
+
+        var usages = new HashSet<string>
+        {
+            "T:System.ValueType",
+        };
+
+        Check(source, usages);
+    }
+
+    [Fact]
     public void Attributes_Assembly()
     {
         const string source =
@@ -15,10 +47,10 @@ public class AssemblyCrawlerTests
             [assembly: AssemblyMetadata("key", "value")]
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Reflection.AssemblyMetadataAttribute", 1 },
-            { "M:System.Reflection.AssemblyMetadataAttribute.#ctor(System.String,System.String)", 1 }
+            "T:System.Reflection.AssemblyMetadataAttribute",
+            "M:System.Reflection.AssemblyMetadataAttribute.#ctor(System.String,System.String)"
         };
 
         Check(source, usages);
@@ -33,10 +65,10 @@ public class AssemblyCrawlerTests
             [module: CLSCompliant(false)]
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.CLSCompliantAttribute", 1 },
-            { "M:System.CLSCompliantAttribute.#ctor(System.Boolean)", 1 }
+            "T:System.CLSCompliantAttribute",
+            "M:System.CLSCompliantAttribute.#ctor(System.Boolean)"
         };
 
         Check(source, usages);
@@ -52,15 +84,12 @@ public class AssemblyCrawlerTests
             class Test { }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 1 },         // Constructor
-            { "T:System.ObsoleteAttribute", 1 },
-            { "M:System.ObsoleteAttribute.#ctor", 1 },
-            { "F:System.ObsoleteAttribute.DiagnosticId", 1 },
-            { "P:System.ObsoleteAttribute.DiagnosticId", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor",
+            "P:System.ObsoleteAttribute.DiagnosticId"
         };
 
         Check(source, usages);
@@ -78,13 +107,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 1 },         // Constructor
-            { "T:System.ObsoleteAttribute", 1 },
-            { "M:System.ObsoleteAttribute.#ctor", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor"
         };
 
         Check(source, usages);
@@ -102,13 +129,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 2 },         // Constructor + method
-            { "T:System.ObsoleteAttribute", 1 },
-            { "M:System.ObsoleteAttribute.#ctor", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor"
         };
 
         Check(source, usages);
@@ -126,14 +151,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Int32", 1 },
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 1 },         // Constructor
-            { "T:System.ObsoleteAttribute", 1 },
-            { "M:System.ObsoleteAttribute.#ctor", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor"
         };
 
         Check(source, usages);
@@ -151,14 +173,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Int32", 4 },        // Property + getter + setter + field
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 2 },         // Constructor + setter
-            { "T:System.ObsoleteAttribute", 1 },
-            { "M:System.ObsoleteAttribute.#ctor", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor"
         };
 
         Check(source, usages);
@@ -176,16 +195,17 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.EventHandler", 6 }, // Event + adder + remover + field + 2 casts in generated handlers
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 3 },         // Constructor + adder + remover
-            { "M:System.Delegate.Combine(System.Delegate,System.Delegate)", 1 }, // Adder
-            { "M:System.Delegate.Remove(System.Delegate,System.Delegate)", 1 },  // Remover
-            { "T:System.ObsoleteAttribute", 1 },
-            { "M:System.ObsoleteAttribute.#ctor", 1 }
+            "T:System.EventHandler",
+            "M:System.Object.#ctor",
+            "M:System.Delegate.Combine(System.Delegate,System.Delegate)", // Adder
+            "M:System.Delegate.Remove(System.Delegate,System.Delegate)",  // Remover
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor",
+            "M:System.Threading.Interlocked.CompareExchange``1(``0@,``0,``0)",
+            "T:System.Threading.Interlocked",
+            "T:System.Delegate",
         };
 
         Check(source, usages);
@@ -199,11 +219,9 @@ public class AssemblyCrawlerTests
             class Test { }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 1 },         // Constructor
+            "M:System.Object.#ctor", // Base call
         };
 
         Check(source, usages);
@@ -220,13 +238,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Collections.IEnumerable", 1 },
-            { "T:System.Collections.IEnumerator", 1 },
-            { "T:System.Void", 1 }          // Constructor
+            "M:System.Object.#ctor", // Base call
+            "T:System.Collections.IEnumerable",
+            "T:System.Collections.IEnumerator",
         };
 
         Check(source, usages);
@@ -245,12 +261,10 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 2 },         // Constructor + method
-            { "M:System.Int32.Parse(System.String)", 1 }
+            "M:System.Object.#ctor", // Base call
+            "M:System.Int32.Parse(System.String)"
         };
 
         Check(source, usages);
@@ -269,12 +283,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 2 },         // Constructor + method
-            { "M:System.String.get_Length", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.String",
+            "M:System.String.get_Length",
         };
 
         Check(source, usages);
@@ -295,13 +308,12 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 },       // Base
-            { "M:System.Object.#ctor", 1 }, // Base call
-            { "T:System.Void", 2 },         // Constructor + method
-            { "M:System.ObsoleteAttribute.#ctor", 1 },
-            { "M:System.ObsoleteAttribute.set_DiagnosticId(System.String)", 1 }
+            "M:System.Object.#ctor", // Base call
+            "T:System.ObsoleteAttribute",
+            "M:System.ObsoleteAttribute.#ctor",
+            "M:System.ObsoleteAttribute.set_DiagnosticId(System.String)",
         };
 
         Check(source, usages);
@@ -321,15 +333,14 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 4 }, // Base, event handler sender
-            { "T:System.Void", 2 },
-            { "M:System.AppDomain.get_CurrentDomain", 1 },
-            { "T:System.UnhandledExceptionEventHandler", 2 },
-            { "M:System.UnhandledExceptionEventHandler.#ctor(System.Object,System.IntPtr)", 1 },
-            { "M:System.AppDomain.add_UnhandledException(System.UnhandledExceptionEventHandler)", 1 },
-            { "T:System.UnhandledExceptionEventArgs", 1 }
+            "T:System.AppDomain",
+            "M:System.AppDomain.get_CurrentDomain",
+            "T:System.UnhandledExceptionEventHandler",
+            "M:System.UnhandledExceptionEventHandler.#ctor(System.Object,System.IntPtr)",
+            "M:System.AppDomain.add_UnhandledException(System.UnhandledExceptionEventHandler)",
+            "T:System.UnhandledExceptionEventArgs",
         };
 
         Check(source, usages);
@@ -349,15 +360,14 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 4 }, // Base, event handler sender
-            { "T:System.Void", 2 },
-            { "M:System.AppDomain.get_CurrentDomain", 1 },
-            { "T:System.UnhandledExceptionEventHandler", 2 },
-            { "M:System.UnhandledExceptionEventHandler.#ctor(System.Object,System.IntPtr)", 1 },
-            { "M:System.AppDomain.remove_UnhandledException(System.UnhandledExceptionEventHandler)", 1 },
-            { "T:System.UnhandledExceptionEventArgs", 1 }
+            "T:System.AppDomain",
+            "M:System.AppDomain.get_CurrentDomain",
+            "T:System.UnhandledExceptionEventHandler",
+            "M:System.UnhandledExceptionEventHandler.#ctor(System.Object,System.IntPtr)",
+            "M:System.AppDomain.remove_UnhandledException(System.UnhandledExceptionEventHandler)",
+            "T:System.UnhandledExceptionEventArgs"
         };
 
         Check(source, usages);
@@ -376,11 +386,10 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 }, // Base
-            { "T:System.Void", 1 },
-            { "F:System.IO.Path.PathSeparator", 1 }
+            "T:System.IO.Path",
+            "F:System.IO.Path.PathSeparator",
         };
 
         Check(source, usages);
@@ -399,12 +408,11 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 }, // Base
-            { "T:System.Void", 1 },
-            { "M:System.Runtime.InteropServices.MarshalAsAttribute.#ctor(System.Int16)", 1 },
-            { "F:System.Runtime.InteropServices.MarshalAsAttribute.MarshalType", 1 }
+            "T:System.Runtime.InteropServices.MarshalAsAttribute",
+            "M:System.Runtime.InteropServices.MarshalAsAttribute.#ctor(System.Int16)",
+            "F:System.Runtime.InteropServices.MarshalAsAttribute.MarshalType"
         };
 
         Check(source, usages);
@@ -417,17 +425,15 @@ public class AssemblyCrawlerTests
             """
             using System;
             static class Test {
-                static void M(Func<string, int> p) {}
+                static void M(Func<Action, Attribute> p) {}
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 }, // Base
-            { "T:System.Void", 1 },
-            { "T:System.Func`2", 1 },
-            { "T:System.String", 1 },
-            { "T:System.Int32", 1 },
+            "T:System.Func`2",
+            "T:System.Action",
+            "T:System.Attribute",
         };
 
         Check(source, usages);
@@ -440,15 +446,13 @@ public class AssemblyCrawlerTests
             """
             using System;
             static class Test {
-                static void M(string[] p) {}
+                static void M(Action[] p) {}
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 1 }, // Base
-            { "T:System.Void", 1 },
-            { "T:System.String", 1 }
+            "T:System.Action"
         };
 
         Check(source, usages);
@@ -468,15 +472,65 @@ public class AssemblyCrawlerTests
             }
             """;
 
-        var usages = new Dictionary<string, int>
+        var usages = new HashSet<string>
         {
-            { "T:System.Object", 3 }, // Base
-            { "T:System.Void", 1 },
-            { "T:System.String", 3 },
-            { "T:System.Action`1", 2 },
-            { "M:System.Console.WriteLine(System.String)", 1 },
-            { "M:System.Action`1.#ctor(System.Object,System.IntPtr)", 1 },
-            { "M:System.Action`1.Invoke(`0)", 1 }
+            "T:System.String",
+            "T:System.Action`1",
+            "M:System.Console.WriteLine(System.String)",
+            "T:System.Console",
+            "M:System.Action`1.#ctor(System.Object,System.IntPtr)",
+            "M:System.Action`1.Invoke(`0)"
+        };
+
+        Check(source, usages);
+    }
+
+    [Fact]
+    public void GenericMethod()
+    {
+        const string source =
+            """
+            using System;
+            using System.Threading.Tasks;
+            
+            static class Test {
+                static object M(int value) {
+                    return Task.FromResult(value);
+                }
+            }
+            """;
+
+        var usages = new HashSet<string>
+        {
+            "T:System.Threading.Tasks.Task",
+            "T:System.Threading.Tasks.Task`1",
+            "M:System.Threading.Tasks.Task.FromResult``1(``0)",
+        };
+
+        Check(source, usages);
+    }
+
+    [Fact]
+    public void InstanceMethod_GenericType()
+    {
+        const string source =
+            """
+            using System;
+            using System.Collections.Generic;
+
+            static class Test {
+                static void M(Dictionary<Action, Attribute> value) {
+                    value.Add(null, null);
+                }
+            }
+            """;
+
+        var usages = new HashSet<string>
+        {
+            "T:System.Action",
+            "T:System.Attribute",
+            "T:System.Collections.Generic.Dictionary`2",
+            "M:System.Collections.Generic.Dictionary`2.Add(`0,`1)",
         };
 
         Check(source, usages);
@@ -484,42 +538,41 @@ public class AssemblyCrawlerTests
 
     // TODO: Pointers
 
-    private static void Check(string source, IReadOnlyDictionary<string, int> expectedResults)
+    private static void Check(string source, IReadOnlySet<string> expectedResults)
     {
         var assembly = new AssemblyBuilder()
-            .SetAssembly(source)
-            .ToAssembly();
-        Check(assembly, expectedResults);
+            .SetAssembly(source);
+
+        using (var peReader = assembly.ToPEReader())
+        {
+            Check(new LibraryReader(peReader), expectedResults);
+        }
     }
 
-    private static void Check(IAssembly assembly, IReadOnlyDictionary<string, int> expectedResultsText)
+    private static void Check(LibraryReader libraryReader, IReadOnlySet<string> expectedResultsText)
     {
-        var expectedResults = expectedResultsText.ToDictionary(kv => new ApiKey(kv.Key), kv => kv.Value);
-
         var crawler = new AssemblyCrawler();
-        crawler.Crawl(assembly);
+        crawler.Crawl(libraryReader);
 
-        var actualResults = crawler.GetResults().Data;
+        Check(expectedResultsText, crawler.GetResults().Data);
+    }
+
+    private static void Check(
+        IReadOnlyCollection<string> expectedResults,
+        IReadOnlySet<ApiKey> actualResults)
+    {
 
         var messageBuilder = new StringBuilder();
 
-        foreach (var key in expectedResults.Keys.Where(k => actualResults.ContainsKey(k) && expectedResults[k] != actualResults[k]))
+        foreach (var key in expectedResults.Where(k => !actualResults.Contains(new ApiKey(k))))
         {
-            if (AssemblyBuilder.IsAutoGenerated(key.DocumentationId))
-                continue;
-
-            messageBuilder.AppendLine($"{key} was expected to have a value {expectedResults[key]} but was {actualResults[key]}.");
-        }
-
-        foreach (var key in expectedResults.Keys.Where(k => !actualResults.ContainsKey(k)))
-        {
-            if (AssemblyBuilder.IsAutoGenerated(key.DocumentationId))
+            if (AssemblyBuilder.IsAutoGenerated(key))
                 continue;
 
             messageBuilder.AppendLine($"{key} was expected but is missing.");
         }
 
-        foreach (var key in actualResults.Keys.Where(k => !expectedResults.ContainsKey(k)))
+        foreach (var key in actualResults.Where(k => !expectedResults.Contains(k.DocumentationId)))
         {
             if (AssemblyBuilder.IsAutoGenerated(key.DocumentationId))
                 continue;

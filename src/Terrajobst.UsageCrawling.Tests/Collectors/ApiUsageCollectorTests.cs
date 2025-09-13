@@ -14,18 +14,18 @@ public class ApiUsageCollectorTests : CollectorTest<ApiUsageCollector>
             """
             using System;
             public class C {
-                public static void M() {
-                    Console.WriteLine("Hello");
+                public static object M(string s) {
+                    return s.Substring(s.Length);
                 }
             }
             """;
 
         var expectedIds =
             """
-            T:System.Object
             M:System.Object.#ctor
-            M:System.Console.WriteLine(System.String)
-            T:System.Void
+            T:System.String
+            M:System.String.Substring(System.Int32)
+            M:System.String.get_Length
             """;
 
         Check(source, expectedIds);

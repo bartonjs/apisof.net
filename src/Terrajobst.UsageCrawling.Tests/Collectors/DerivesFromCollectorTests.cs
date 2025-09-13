@@ -52,7 +52,7 @@ public class DerivesFromCollectorTests : CollectorTest<DerivesFromCollector>
     }
 
     [Fact]
-    public void DerivesFromCollector_Reports_Classes_WithIntantiatedGenericTypes()
+    public void DerivesFromCollector_Reports_Classes_WithInstantiatedGenericTypes()
     {
         var source =
             """

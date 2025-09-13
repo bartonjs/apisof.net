@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Terrajobst.UsageCrawling.Storage;
 
@@ -29,6 +30,22 @@ internal sealed class IdMap<T> : IEnumerable<(int Id, T Value)>
         return id;
     }
 
+    public bool TryAdd(T value, out int key)
+    {
+        var nextId = _largestId + 1;
+
+        if (_idByValue.TryAdd(value, nextId))
+        {
+            _valueById.Add(nextId, value);
+            _largestId = nextId;
+            key = nextId;
+            return true;
+        }
+
+        key = 0;
+        return false;
+    }
+
     public int GetOrAdd(T value)
     {
         if (!_idByValue.TryGetValue(value, out var id))
@@ -50,6 +67,11 @@ internal sealed class IdMap<T> : IEnumerable<(int Id, T Value)>
     public T GetValue(int id)
     {
         return _valueById[id];
+    }
+
+    public bool TryGetValue(int id, [MaybeNullWhen(false)] out T value)
+    {
+        return _valueById.TryGetValue(id, out value);
     }
 
     public bool Contains(T value)
