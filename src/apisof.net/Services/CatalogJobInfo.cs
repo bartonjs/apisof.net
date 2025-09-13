@@ -10,7 +10,7 @@ public sealed class CatalogJobInfo
     {
         Date = DateTimeOffset.MinValue;
         Success = true;
-        DetailsUrl = "https://github.com/dotnet/apisof.net/actions/workflows/gen-catalog.yml";
+        DetailsUrl = "https://github.com/bartonjs/apisof.net/actions/workflows/gen-catalog.yml";
     }
 
     public CatalogJobInfo(DateTimeOffset date, bool success, string detailsUrl)

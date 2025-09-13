@@ -42,7 +42,7 @@ public sealed class VersionService
         if (hash is null)
             return new CommitInfo("<Unknown>", "about:blank", string.Empty);
 
-        var url = $"https://github.com/dotnet/apisof.net/commit/{hash}";
+        var url = $"https://github.com/bartonjs/apisof.net/commit/{hash}";
         var title = hash;
 
         var patchUrl = url + ".patch";

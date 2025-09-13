@@ -12,7 +12,7 @@ public sealed class ApiCatalogModel
 {
     public static ApiCatalogModel Empty { get; } = new();
 
-    public static string Url => "https://apisof.net/catalog/download";
+    public static string Url => "https://catalog.apireview.net/catalog/download";
 
     private readonly int _formatVersion;
     private readonly int _compressedSize;
