@@ -40,8 +40,8 @@ internal sealed class Main : IConsoleMain
         var stopwatch = Stopwatch.StartNew();
 
         await DownloadNuGetUsages(nugetUsagesPath);
-        await DownloadPlannerUsages(plannerUsagesPath);
-        await DownloadNetFxCompatLabUsages(netfxCompatLabPath);
+        //await DownloadPlannerUsages(plannerUsagesPath);
+        //await DownloadNetFxCompatLabUsages(netfxCompatLabPath);
         await GenerateUsageDataAsync(usageDataPath, apiUsagesPath);
         await UploadUsageData(usageDataPath);
 
