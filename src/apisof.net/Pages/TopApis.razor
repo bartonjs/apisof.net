@@ -1,0 +1,31 @@
+﻿@page "/top"
+
+<div class="mt-3 container-fluid">
+	<div class="mx-auto col-md-5">
+		<div>
+			<h3>Top APIs</h3>
+			<table class="statistics-table table table-sm">
+				<thead>
+					
+				</thead>
+				<tbody>
+				<tr>
+					<th>Rank</th>
+					<th>Type</th>
+					<th>Name</th>
+					<th>Usage</th>
+				</tr>
+				@foreach (var (rank, api, hitCount) in GetData())
+				{
+					<tr>
+						<td>@rank</td>
+						<td><img src="@api.Kind.GetGlyph().ToUrl()" heigth="16" width="16" role="presentation" /> @api.Kind.GetGlyph()</td>
+						<td>@string.Join(".", api.AncestorsAndSelf().Reverse().Select(i => i.Name))</td>
+						<td>@hitCount</td>
+					</tr>
+				}
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>

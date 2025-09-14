@@ -189,14 +189,30 @@ public sealed class ApiCatalogModel
 
     public ApiModel GetApiByGuid(Guid guid)
     {
+        if (!TryGetApiByGuid(guid, out var model))
+        {
+            throw new KeyNotFoundException($"API with ID '{guid:N}' not found.");
+        }
+
+        return model.GetValueOrDefault();
+    }
+
+    public bool TryGetApiByGuid(Guid guid, out ApiModel? apiModel)
+    {
         if (_apiOffsetByGuid is null)
         {
             var apiByGuid = AllApis.ToFrozenDictionary(a => a.Guid, a => a.Id);
             Interlocked.CompareExchange(ref _apiOffsetByGuid, apiByGuid, null);
         }
 
-        var offset = _apiOffsetByGuid[guid];
-        return new ApiModel(this, offset);
+        if (_apiOffsetByGuid.TryGetValue(guid, out var offset))
+        {
+            apiModel = new ApiModel(this, offset);
+            return true;
+        }
+
+        apiModel = default;
+        return false;
     }
 
     public ExtensionMethodModel GetExtensionMethodByGuid(Guid guid)
