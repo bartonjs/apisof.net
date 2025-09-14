@@ -28,9 +28,9 @@ public partial class TopApis
             Select(datum => (Api: datum.Api.GetValueOrDefault(), datum.HitCount)).
             OrderByDescending(datum => datum.HitCount).
             ThenByDescending(datum => datum.Api.Name).
-            Select((datum, i) => (Rank: i, datum.Api, datum.HitCount));
+            Select((datum, i) => (Rank: i + 1, datum.Api, datum.HitCount));
 
-        return usageData.Take(25);
+        return usageData.Take(100);
     }
 
     private ApiModel? GetApi(Guid featureId)
