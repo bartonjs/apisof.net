@@ -6,15 +6,15 @@ namespace Terrajobst.ApiCatalog.Features;
 public sealed class FeatureUsageData
 {
     private static readonly byte[] MagicNumber = "apisof.net Feature Usage Data"u8.ToArray();
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
 
-    public static FeatureUsageData Empty { get; } = new(ReadOnlyCollection<(FeatureUsageSource Source, IReadOnlyList<(Guid FeatureId, float Percentage)> Values)>.Empty);
+    public static FeatureUsageData Empty { get; } = new(ReadOnlyCollection<(FeatureUsageSource Source, IReadOnlyList<(Guid FeatureId, int HitCount)> Values)>.Empty);
 
     private readonly FeatureUsageSource[] _usageSources;
     private readonly Guid[] _guids;
     private readonly UsageDataRow[] _rows;
 
-    public FeatureUsageData(IReadOnlyCollection<(FeatureUsageSource Source, IReadOnlyList<(Guid FeatureId, float Percentage)> Values)> data)
+    public FeatureUsageData(IReadOnlyCollection<(FeatureUsageSource Source, IReadOnlyList<(Guid FeatureId, int HitCount)> Values)> data)
     {
         ThrowIfNull(data);
 
@@ -33,10 +33,10 @@ public sealed class FeatureUsageData
             var dataSourceIndex = usageSources.Count;
             usageSources.Add(dataSource);
 
-            foreach (var (featureId, percentage) in values)
+            foreach (var (featureId, hitCount) in values)
             {
                 var guidIndex = Array.BinarySearch(guids, featureId);
-                var row = new UsageDataRow(guidIndex, dataSourceIndex, percentage);
+                var row = new UsageDataRow(guidIndex, dataSourceIndex, hitCount);
                 rows.Add(row);
             }
         }
@@ -79,41 +79,90 @@ public sealed class FeatureUsageData
             throw new InvalidDataException("Magic number doesn't match");
 
         var version = reader.ReadInt32();
-        if (version != FormatVersion)
-            throw new InvalidDataException($"Version {version} isn't supported.");
 
-        var dataSourceCount = reader.ReadInt32();
-        var dataSources = new FeatureUsageSource[dataSourceCount];
-        for (var i = 0; i < dataSources.Length; i++)
+        return version switch
         {
-            var name = reader.ReadString();
-            var dayNumber = reader.ReadInt32();
-            var date = DateOnly.FromDayNumber(dayNumber);
+            1 => ReadVersion1(reader),
+            2 => ReadVersion2(reader),
+            _ => throw new InvalidDataException($"Version {version} isn't supported."),
+        };
 
-            dataSources[i] = new FeatureUsageSource(name, date);
+        static FeatureUsageData ReadVersion2(BinaryReader reader)
+        {
+            var dataSourceCount = reader.ReadInt32();
+            var dataSources = new FeatureUsageSource[dataSourceCount];
+            for (var i = 0; i < dataSources.Length; i++)
+            {
+                var name = reader.ReadString();
+                var dayNumber = reader.ReadInt32();
+                var date = DateOnly.FromDayNumber(dayNumber);
+                var size = reader.ReadInt32();
+
+                dataSources[i] = new FeatureUsageSource(name, date, size);
+            }
+
+            var guidCount = reader.ReadInt32();
+            var guids = new Guid[guidCount];
+
+            for (var i = 0; i < guids.Length; i++)
+            {
+                var guidBytes = reader.ReadBytes(16);
+                guids[i] = new Guid(guidBytes);
+            }
+
+            var rowCount = reader.ReadInt32();
+            var rows = new UsageDataRow[rowCount];
+
+            for (var i = 0; i < rows.Length; i++)
+            {
+                var guidIndex = reader.Read7BitEncodedInt();
+                var dataSourceIndex = reader.Read7BitEncodedInt();
+                var hitCount = reader.ReadInt32();
+                rows[i] = new UsageDataRow(guidIndex, dataSourceIndex, hitCount);
+            }
+
+            return new FeatureUsageData(dataSources, guids, rows);
         }
 
-        var guidCount = reader.ReadInt32();
-        var guids = new Guid[guidCount];
-
-        for (var i = 0; i < guids.Length; i++)
+        static FeatureUsageData ReadVersion1(BinaryReader reader)
         {
-            var guidBytes = reader.ReadBytes(16);
-            guids[i] = new Guid(guidBytes);
+            const int PseudoScale = 503000;
+
+            var dataSourceCount = reader.ReadInt32();
+            var dataSources = new FeatureUsageSource[dataSourceCount];
+
+            for (var i = 0; i < dataSources.Length; i++)
+            {
+                var name = reader.ReadString();
+                var dayNumber = reader.ReadInt32();
+                var date = DateOnly.FromDayNumber(dayNumber);
+
+                dataSources[i] = new FeatureUsageSource(name, date, PseudoScale);
+            }
+
+            var guidCount = reader.ReadInt32();
+            var guids = new Guid[guidCount];
+
+            for (var i = 0; i < guids.Length; i++)
+            {
+                var guidBytes = reader.ReadBytes(16);
+                guids[i] = new Guid(guidBytes);
+            }
+
+            var rowCount = reader.ReadInt32();
+            var rows = new UsageDataRow[rowCount];
+
+            for (var i = 0; i < rows.Length; i++)
+            {
+                var guidIndex = reader.Read7BitEncodedInt();
+                var dataSourceIndex = reader.Read7BitEncodedInt();
+                double percentage = reader.ReadSingle();
+                var hitCount = (int)(percentage * PseudoScale);
+                rows[i] = new UsageDataRow(guidIndex, dataSourceIndex, hitCount);
+            }
+
+            return new FeatureUsageData(dataSources, guids, rows);
         }
-
-        var rowCount = reader.ReadInt32();
-        var rows = new UsageDataRow[rowCount];
-
-        for (var i = 0; i < rows.Length; i++)
-        {
-            var guidIndex = reader.Read7BitEncodedInt();
-            var dataSourceIndex = reader.Read7BitEncodedInt();
-            var percentage = reader.ReadSingle();
-            rows[i] = new UsageDataRow(guidIndex, dataSourceIndex, percentage);
-        }
-
-        return new FeatureUsageData(dataSources, guids, rows);
     }
 
     public void Save(string path)
@@ -139,6 +188,7 @@ public sealed class FeatureUsageData
         {
             writer.Write(ds.Name);
             writer.Write(ds.Date.DayNumber);
+            writer.Write(ds.Size);
         }
 
         writer.Write(_guids.Length);
@@ -157,31 +207,30 @@ public sealed class FeatureUsageData
         {
             writer.Write7BitEncodedInt(row.GuidIndex);
             writer.Write7BitEncodedInt(row.DataSourceIndex);
-            writer.Write(row.Percentage);
+            writer.Write(row.HitCount);
         }
     }
 
     public IReadOnlyList<FeatureUsageSource> UsageSources => _usageSources;
 
-    public IEnumerable<(Guid FeatureId, float Percentage)> GetUsage(FeatureUsageSource source)
+    public IEnumerable<(Guid FeatureId, int HitCount)> GetUsage(FeatureUsageSource source)
     {
         ThrowIfNull(source);
 
         return _rows.Where(r => _usageSources[r.DataSourceIndex] == source)
-                    .Select(r => (_guids[r.GuidIndex], r.Percentage));
+                    .Select(r => (_guids[r.GuidIndex], r.HitCount));
     }
 
-    public float? GetUsage(FeatureUsageSource source, Guid featureId)
+    public int GetUsage(FeatureUsageSource source, Guid featureId)
     {
         ThrowIfNull(source);
 
         return GetUsage(featureId).Where(d => d.Source == source)
-                                  .Select(f => f.Percentage)
-                                  .Cast<float?>()
+                                  .Select(f => f.HitCount)
                                   .SingleOrDefault();
     }
 
-    public IEnumerable<(FeatureUsageSource Source, float Percentage)> GetUsage(Guid featureId)
+    public IEnumerable<(FeatureUsageSource Source, int HitCount)> GetUsage(Guid featureId)
     {
         var guidIndex = Array.BinarySearch(_guids, featureId);
         if (guidIndex < 0)
@@ -195,7 +244,7 @@ public sealed class FeatureUsageData
         {
             var row = _rows[rowIndex];
             var dataSource = _usageSources[row.DataSourceIndex];
-            var percentage = row.Percentage;
+            var percentage = row.HitCount;
             rowIndex++;
             yield return (dataSource, percentage);
         }
@@ -229,10 +278,10 @@ public sealed class FeatureUsageData
         return -1;
     }
 
-    private readonly struct UsageDataRow(int guidIndex, int dataSourceIndex, float percentage)
+    private readonly struct UsageDataRow(int guidIndex, int dataSourceIndex, int hitCount)
     {
         public int GuidIndex { get; } = guidIndex;
         public int DataSourceIndex { get; } = dataSourceIndex;
-        public float Percentage { get; } = percentage;
+        public int HitCount { get; } = hitCount;
     }
 }

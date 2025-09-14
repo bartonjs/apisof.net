@@ -98,14 +98,14 @@ internal sealed class Main : IConsoleMain
         Console.WriteLine($"Generating {Path.GetFileName(usageDataPath)}...");
 
         var usageFiles = GetUsageFiles(apiUsagesPath);
-        var data = new List<(FeatureUsageSource Source, IReadOnlyList<(Guid FeatureId, float Percentage)> Values)>();
+        var data = new List<(FeatureUsageSource Source, IReadOnlyList<(Guid FeatureId, int HitCount)> Values)>();
 
         foreach (var (path, name, date) in usageFiles)
         {
-            var usageSource = new FeatureUsageSource(name, date);
-            var usageSourceData = ParseFile(path).ToArray();
+            var usageSourceData = ParseFile(path, out var size);
+            var usageSource = new FeatureUsageSource(name, date, size);
             data.Add((usageSource, usageSourceData));
-            AddUsageSourceCountToSummary(usageSource, usageSourceData.Length);
+            AddUsageSourceCountToSummary(usageSource, usageSourceData.Count);
         }
 
         var usageData = new FeatureUsageData(data);
@@ -114,26 +114,39 @@ internal sealed class Main : IConsoleMain
 
         return Task.CompletedTask;
 
-        static IEnumerable<(Guid FeatureId, float Percentage)> ParseFile(string path)
+        static IReadOnlyList<(Guid FeatureId, int HitCount)> ParseFile(string path, out int size)
         {
             using var streamReader = new StreamReader(path);
+            var first = true;
+            size = 0;
+            var ret = new List<(Guid FeatureId, int HitCount)>();
 
             while (streamReader.ReadLine() is { } line)
             {
                 var tabIndex = line.IndexOf('\t');
                 var lastTabIndex = line.LastIndexOf('\t');
+
+                if (first)
+                {
+                    size = int.Parse(line);
+                    first = false;
+                    continue;
+                }
+
                 if (tabIndex > 0 && tabIndex == lastTabIndex)
                 {
                     var guidTextSpan = line.AsSpan(0, tabIndex);
-                    var percentageSpan = line.AsSpan(tabIndex + 1);
+                    var valueSpan = line.AsSpan(tabIndex + 1);
 
                     if (Guid.TryParse(guidTextSpan, out var featureId) &&
-                        float.TryParse(percentageSpan, out var percentage))
+                        int.TryParse(valueSpan, out var hitCount))
                     {
-                        yield return (featureId, percentage);
+                        ret.Add((featureId, hitCount));
                     }
                 }
             }
+
+            return ret;
         }
     }
 

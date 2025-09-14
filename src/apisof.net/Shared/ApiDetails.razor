@@ -113,8 +113,9 @@
                             <td>
                                 @foreach (var usage in usages)
                                 {
-                                    var value = usage.Percentage * 100;
-                                    var title = $"Usage on {usageSource.Name} is {usage.Percentage:P5} (as of {usageSource.Date})";
+                                    var percentage = (float)usage.HitCount / usageSource.Size;
+                                    var value = percentage * 100;
+                                    var title = $"Usage on {usageSource.Name} is {usage.HitCount:N0} / {usageSource.Size:N0} ({percentage:P5}), as of {usageSource.Date}";
 
                                     <div class="usage-progress-container mb-2" title="@title">
                                         <div class="usage-progress-group">
@@ -124,7 +125,7 @@
                                                 </div>
                                             </div>
                                             <div class="usage-percentage">
-                                                @usage.Percentage.ToString("P1")
+                                                @percentage.ToString("P1")
                                             </div>
                                         </div>
                                         <div class="usage-description text-muted small text-break">

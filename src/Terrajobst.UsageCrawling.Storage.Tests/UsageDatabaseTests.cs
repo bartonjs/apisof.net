@@ -204,7 +204,9 @@ public class UsageDatabaseTests : IDisposable
             (feature2, 1.0f),
         };
 
-        var actualUsages = (await db.GetUsagesAsync()).OrderBy(u => u.Feature).ToArray();
+        var results = (await db.GetUsagesAsync());
+        var actualUsages = results.Results.OrderBy(u => u.Feature).
+            Select(kvp => (kvp.Feature, (float)kvp.HitCount / results.PackageCount)).ToArray();
 
         Assert.Equal(expectedUsages, actualUsages);
     }
@@ -220,6 +222,7 @@ public class UsageDatabaseTests : IDisposable
         var feature1 = Guid.Parse("8f6f963b-e0ab-4832-8825-cc4564bb9761");
         var feature2 = Guid.Parse("b6dce64b-20d8-4679-a5e6-32f11d65d5dc");
         await db.TryAddFeatureAsync(feature1);
+        await db.TryAddFeatureAsync(feature2);
 
         await db.AddUsageAsync(unit, feature1);
 
@@ -228,11 +231,14 @@ public class UsageDatabaseTests : IDisposable
             // We expect feature 2 to be omitted
         };
 
-        var actualUsages = (await db.GetUsagesAsync()).OrderBy(u => u.Feature).ToArray();
+        var results = (await db.GetUsagesAsync());
+        var actualUsages = results.Results.OrderBy(u => u.Feature).
+            Select(kvp => (kvp.Feature, (float)kvp.HitCount / results.PackageCount)).ToArray();
 
         Assert.Equal(expectedUsages, actualUsages);
     }
 
+#if VERSIONS_HONORED
     [Fact]
     public async Task UsageDatabase_GetUsages_ComputesPercentage_AndHonorsVersion()
     {
@@ -263,10 +269,13 @@ public class UsageDatabaseTests : IDisposable
             (feature3_V1, 1.0f)
         };
 
-        var actualUsages = (await db.GetUsagesAsync()).OrderBy(u => u.Feature).ToArray();
+        var results = (await db.GetUsagesAsync());
+        var actualUsages = results.Results.OrderBy(u => u.Feature).
+            Select(kvp => (kvp.Feature, (float)kvp.HitCount / results.PackageCount)).ToArray();
 
         Assert.Equal(expectedUsages, actualUsages);
     }
+#endif
 
     [Fact]
     public async Task UsageDatabase_GetUsagesAsyncWithParents_ComputesPercentage()
@@ -332,7 +341,9 @@ public class UsageDatabaseTests : IDisposable
             (featureX, 1/4f),
         };
 
-        var actualUsages = (await db.GetUsagesAsync()).OrderBy(u => u.Feature).ToArray();
+        var results = (await db.GetUsagesAsync());
+        var actualUsages = results.Results.OrderBy(u => u.Feature).
+            Select(kvp => (kvp.Feature, (float)kvp.HitCount / results.PackageCount)).ToArray();
 
         Assert.Equal(expectedUsages, actualUsages);
     }

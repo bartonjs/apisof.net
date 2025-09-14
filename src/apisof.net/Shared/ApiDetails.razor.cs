@@ -48,7 +48,7 @@ public partial class ApiDetails
 
     public required ApiModel Parent { get; set; }
 
-    public required IReadOnlyList<(FeatureUsageSource Source, IReadOnlyList<(FeatureDefinition Feature, float Percentage)> Usages)> Usages { get; set; }
+    public required IReadOnlyList<(FeatureUsageSource Source, IReadOnlyList<(FeatureDefinition Feature, int HitCount)> Usages)> Usages { get; set; }
 
     public required ApiAvailability Availability { get; set; }
 
@@ -180,15 +180,15 @@ public partial class ApiDetails
                                                       fx.Framework.IsPlatformNeutral());
     }
 
-    private IReadOnlyList<(FeatureUsageSource Source, IReadOnlyList<(FeatureDefinition Feature, float Percentage)> Usages)> GetUsages()
+    private IReadOnlyList<(FeatureUsageSource Source, IReadOnlyList<(FeatureDefinition Feature, int HitCount)> Usages)> GetUsages()
     {
-        var usages = new List<(FeatureUsageSource Source, FeatureDefinition Feature, float Percentage)>();
+        var usages = new List<(FeatureUsageSource Source, FeatureDefinition Feature, int HitCount)>();
         var usageData = CatalogService.UsageData;
         foreach (var feature in FeatureDefinition.ApiFeatures)
         {
             var featureId = feature.GetFeatureId(Api.Guid);
-            foreach (var (usageSource, percentage) in usageData.GetUsage(featureId))
-                usages.Add((usageSource, feature, percentage));
+            foreach (var (usageSource, hitCount) in usageData.GetUsage(featureId))
+                usages.Add((usageSource, feature, hitCount));
         }
 
         if (Api.Kind == ApiKind.Property)
@@ -230,7 +230,7 @@ public partial class ApiDetails
         }
 
         return usages.GroupBy(u => u.Source)
-                     .Select(g => (g.Key, (IReadOnlyList<(FeatureDefinition, float)>)g.Select(t => (t.Feature, t.Percentage)).ToArray()))
+                     .Select(g => (g.Key, (IReadOnlyList<(FeatureDefinition, int)>)g.Select(t => (t.Feature, t.HitCount)).ToArray()))
                      .ToArray();
     }
 

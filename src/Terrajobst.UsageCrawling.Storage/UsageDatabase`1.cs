@@ -95,7 +95,7 @@ public abstract class UsageDatabase<TReferenceUnit> : IDisposable
         return _usageDatabase.AddUsageAsync(referenceUnitIdentifier, feature);
     }
 
-    public Task<IReadOnlyCollection<(Guid Feature, float percentage)>> GetUsagesAsync()
+    public Task<(int PackageCount, IReadOnlyCollection<(Guid Feature, int HitCount)>)> GetUsagesAsync()
     {
         return _usageDatabase.GetUsagesAsync();
     }

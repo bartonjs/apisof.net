@@ -16,13 +16,15 @@
                             {
                                 <tr>
                                     <th class="text-break align-top">
-                                        @usageSource.Name
+                                        @usageSource.Name (@usageSource.Size)
                                     </th>
                                     <td>
                                         @foreach (var usage in usages)
                                         {
-                                            var value = usage.Percentage * 100;
-                                            var title = $"Usage on {usageSource.Name} is {usage.Percentage:P5} (as of {usageSource.Date})";
+                                            var hitCount = usage.HitCount;
+                                            var percentage = ((float)hitCount / usageSource.Size);
+                                            var value = percentage * 100;
+                                            var title = $"Usage on {usageSource.Name} is {hitCount} / {usageSource.Size} ({percentage:P5}), as of {usageSource.Date}";
 
                                             <div class="usage-progress-container mb-2" title="@title">
                                                 <div class="usage-progress-group">
@@ -32,7 +34,7 @@
                                                         </div>
                                                     </div>
                                                     <div class="usage-percentage">
-                                                        @usage.Percentage.ToString("P1")
+                                                        @percentage.ToString("P1")
                                                     </div>
                                                 </div>
                                                 <div class="usage-description text-muted small text-break">
@@ -70,10 +72,13 @@
 
                         void WriteRows(IEnumerable<TargetFrameworkNode> nodes)
                         {
+                            var size = NuGetSource.Size;
+
                             foreach (var node in nodes)
                             {
                                 var featureId = FeatureDefinition.TargetFramework.GetFeatureId(node.Framework);
-                                var percentage = CatalogService.UsageData.GetUsage(NuGetSource, featureId);
+                                var hitCount = CatalogService.UsageData.GetUsage(NuGetSource, featureId);
+                                var percentage = size == 0 ? (float?)null : (float)hitCount / size;
                                 var percentageText = percentage is null ? string.Empty : percentage.Value.ToString("P0");
                                 var value = percentage * 100;
                                 var isExpanded = IsExpanded(node);
@@ -88,7 +93,7 @@
                                                     : node.Framework.GetShortFolderName();
                                 var usageDetailsTitle = percentage is null
                                                 ? $"No usage of {frameworkName} on {NuGetSource.Name} (as of {NuGetSource.Date})"
-                                                : $"Usage of {frameworkName} on {NuGetSource.Name} is {percentage:P5} (as of {NuGetSource.Date})";
+                                                : $"Usage of {frameworkName} on {NuGetSource.Name} is {hitCount} / {size} ({percentage:P5}), as of {NuGetSource.Date}";
 
                                 <tr title="@usageDetailsTitle">
                                     <th scope="row" class="text-break" onmousedown="@(() => ExpandNode(node, !isExpanded))"

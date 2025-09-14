@@ -301,49 +301,31 @@ public sealed class UsageDatabase : IDisposable
         await _insertUsageCommand.ExecuteAsync(referenceUnit, featureId);
     }
 
-    public async Task<IReadOnlyCollection<(Guid Feature, float percentage)>> GetUsagesAsync()
+    public async Task<(int PackageCount, IReadOnlyCollection<(Guid Feature, int HitCount)> Results)> GetUsagesAsync()
     {
-        var maxVersion = await _connection.ExecuteScalarAsync<int>(
+        var usefulPackageCount = await _connection.ExecuteScalarAsync<int>(
             """
-            SELECT MAX(CollectorVersion) FROM ReferenceUnits
+            SELECT COUNT(DISTINCT ReferenceUnitId) FROM Usages
             """,
             transaction: _transaction);
-        await _connection.ExecuteAsync(
-            """
-            DROP TABLE IF EXISTS ReferenceUnitCounts;
-            CREATE TABLE ReferenceUnitCounts
-            (
-                [CollectorVersion] INTEGER PRIMARY KEY,
-                [Count]            INTEGER NOT NULL
-            ) WITHOUT ROWID;
-            """, transaction: _transaction);
 
-        for (var version = 0; version <= maxVersion; version++)
-        {
-            await _connection.ExecuteAsync(
-                """
-                INSERT INTO ReferenceUnitCounts(CollectorVersion, Count)
-                VALUES (@CollectorVersion, (SELECT COUNT(*) FROM ReferenceUnits WHERE ReferenceUnits.CollectorVersion >= @CollectorVersion))
-                """, new { CollectorVersion= version }, transaction: _transaction);
-        }
-
-        var results = _connection.QueryUnbufferedAsync<(int FeatureId, float Percentage)>(
+        var results = _connection.QueryUnbufferedAsync<(int FeatureId, int HitCount)>(
             """
             SELECT   COALESCE(a.ParentFeatureId, u.FeatureId) AS FeatureId,
-                     CAST(COUNT(DISTINCT u.ReferenceUnitId) AS REAL) / (SELECT r.Count FROM ReferenceUnitCounts r WHERE r.CollectorVersion = f.CollectorVersion) AS Percentage
+                     COUNT(DISTINCT u.ReferenceUnitId) AS HitCount
             FROM     Usages u
                          JOIN Features f ON f.FeatureId = u.FeatureId
                          LEFT JOIN ParentFeatures a ON a.ChildFeatureId = u.FeatureId
             GROUP BY COALESCE(a.ParentFeatureId, u.FeatureId)
             """, transaction: _transaction);
 
-        var result = new List<(Guid, float)>();
+        var result = new List<(Guid, int)>();
 
         await foreach (var item in results)
         {
             if (_featureIdMap.TryGetValue(item.FeatureId, out var feature))
             {
-                result.Add((feature, item.Percentage));
+                result.Add((feature, item.HitCount));
             }
             else
             {
@@ -351,12 +333,7 @@ public sealed class UsageDatabase : IDisposable
             }
         }
 
-        await _connection.ExecuteAsync(
-            """
-            DROP TABLE IF EXISTS ReferenceUnitCounts;
-            """, transaction: _transaction);
-
-        return result;
+        return (usefulPackageCount, result);
     }
 
     public async Task ExportUsagesAsync(string fileName)
@@ -366,8 +343,10 @@ public sealed class UsageDatabase : IDisposable
         var results = await GetUsagesAsync();
 
         await using var writer = new StreamWriter(fileName);
-        foreach (var (feature, percentage) in results)
-            await writer.WriteLineAsync($"{feature:N}\t{percentage}");
+        await writer.WriteLineAsync(results.PackageCount.ToString());
+
+        foreach (var (feature, hitCount) in results.Results)
+            await writer.WriteLineAsync($"{feature:N}\t{hitCount}");
     }
 
     public async Task<(int FeatureCount, int ReferenceUnitCount, int UsageCount)> GetStatisticsAsync()
