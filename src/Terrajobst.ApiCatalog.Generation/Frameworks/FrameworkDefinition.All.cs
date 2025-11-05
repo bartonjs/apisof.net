@@ -872,7 +872,7 @@ public partial class FrameworkDefinition
                 },
             ]
         },
-        new FrameworkDefinition("net9.0", isPreview: true)
+        new FrameworkDefinition("net9.0")
         {
             SupportedPlatforms =
             [
@@ -1068,6 +1068,203 @@ public partial class FrameworkDefinition
                     Workloads = ["tvos"]
                 },
             ]
-        }
+        },
+        new FrameworkDefinition("net10.0", isPreview: true)
+        {
+            SupportedPlatforms =
+            [
+                new FrameworkPlatformDefinition("android")
+                {
+                    Versions = ["21.0", "22.0", "23.0", "24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0"]
+                },
+                new FrameworkPlatformDefinition("ios")
+                {
+                    Versions = ["10.0", "10.1", "10.2", "10.3", "11.0", "11.1", "11.2", "11.3", "11.4", "12.0", "12.1", "12.2", "12.3", "12.4", "13.0", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "14.0", "14.1", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.0", "16.1", "16.2", "16.4", "17.0", "17.2"]
+                },
+                new FrameworkPlatformDefinition("maccatalyst")
+                {
+                    Versions = ["13.1", "13.2", "13.3", "13.4", "13.5", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.1", "16.2", "16.4", "17.0", "17.2"]
+                },
+                new FrameworkPlatformDefinition("macos")
+                {
+                    Versions = ["10.14", "10.15", "10.16", "11.0", "11.1", "11.2", "11.3", "12.0", "12.1", "12.3", "13.0", "13.1", "13.3", "14.0", "14.2"]
+                },
+                new FrameworkPlatformDefinition("tvos")
+                {
+                    Versions = ["10.0", "10.1", "10.2", "11.0", "11.1", "11.2", "11.3", "11.4", "12.0", "12.1", "12.2", "12.3", "12.4", "13.0", "13.2", "13.3", "13.4", "14.0", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.0", "16.1", "16.4", "17.0", "17.2"]
+                },
+                new FrameworkPlatformDefinition("windows")
+                {
+                    Versions = ["7.0", "8.0", "10.0.17763", "10.0.18362", "10.0.19041", "10.0.20348", "10.0.22000", "10.0.22621"]
+                }
+            ],
+            BuiltInPacks =
+            [
+                new PackReference("Microsoft.NETCore.App.Ref")
+                {
+                    Version = "10.0",
+                    Platforms = [""],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.AspNetCore.App.Ref")
+                {
+                    Version = "10.0",
+                    Platforms = [""],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.WindowsDesktop.App.Ref")
+                {
+                    Version = "10.0",
+                    Platforms = ["windows"],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.17763",
+                    Platforms = ["windows10.0.17763"],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.18362",
+                    Platforms = ["windows10.0.18362"],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.19041",
+                    Platforms = ["windows10.0.19041"],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.20348",
+                    Platforms = ["windows10.0.20348"],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.22000",
+                    Platforms = ["windows10.0.22000"],
+                    Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.22621",
+                    Platforms = ["windows10.0.22621"],
+                    Kind = PackKind.Framework
+                }
+            ],
+            WorkloadPacks =
+            [
+                new PackReference("Aspire.Hosting")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["aspire"]
+                },
+                new PackReference("Microsoft.Android.Ref.36")
+                {
+                    Version = "36.0",
+                    Kind = PackKind.Framework,
+                    Platforms = ["android"],
+                    Workloads = ["android", "maui", "maui-android", "maui-mobile"]
+                },
+                new PackReference("Microsoft.AspNetCore.Components.WebView.Maui")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference(" Microsoft.iOS.Ref.net10.0_18.5")
+                {
+                    Version = "18.5",
+                    Kind = PackKind.Framework,
+                    Platforms = ["ios"],
+                    Workloads = ["ios", "maui", "maui-ios", "maui-mobile"]
+                },
+                new PackReference("Microsoft.MacCatalyst.Ref.net10.0_18.5")
+                {
+                    Version = "18.5",
+                    Kind = PackKind.Framework,
+                    Platforms = ["maccatalyst"],
+                    Workloads = ["maccatalyst", "maui", "maui-desktop", "maui-maccatalyst"]
+                },
+                new PackReference("Microsoft.macOS.Ref.net10.0_15.5")
+                {
+                    Version = "15.5",
+                    Kind = PackKind.Framework,
+                    Platforms = ["macos"],
+                    Workloads = ["macos"]
+                },
+                new PackReference("Microsoft.Maui.Controls")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Controls.Build.Tasks")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Controls.Compatibility")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Controls.Core")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Controls.Xaml")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Core")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Essentials")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Graphics")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Graphics.Win2D.WinUI.Desktop")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-desktop", "maui-windows"]
+                },
+                new PackReference("Microsoft.Maui.Resizetizer")
+                {
+                    Version = "10.0",
+                    Kind = PackKind.Library,
+                    Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
+                },
+                new PackReference("Microsoft.tvOS.Ref.net10.0_18.5")
+                {
+                    Version = "18.5",
+                    Kind = PackKind.Framework,
+                    Platforms = ["tvos"],
+                    Workloads = ["tvos"]
+                },
+            ]
+        },
     ];
 }
