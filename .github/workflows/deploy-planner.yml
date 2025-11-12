@@ -27,7 +27,7 @@ jobs:
     - name: Get .NET
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: '10.0.*'
+        dotnet-version: '8.0.*'
 
     - name: Get GitVersion
       uses: dotnet/nbgv@master
