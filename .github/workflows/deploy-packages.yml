@@ -19,7 +19,7 @@ jobs:
     - name: Get .NET
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: '8.0.*'
+        dotnet-version: '10.0.*'
 
     - name: Run tests
       run: |
@@ -44,7 +44,7 @@ jobs:
     - name: Get .NET
       uses: actions/setup-dotnet@v5
       with:
-        dotnet-version: '8.0.*'
+        dotnet-version: '10.0.*'
 
     - name: Download build
       uses: actions/download-artifact@v5
