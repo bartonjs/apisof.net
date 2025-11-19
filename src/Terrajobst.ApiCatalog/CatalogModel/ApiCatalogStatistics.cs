@@ -15,6 +15,7 @@ public sealed class ApiCatalogStatistics
                                 int numberOfPackages,
                                 int numberOfPackageVersions,
                                 int numberOfPackageAssemblies,
+                                TimeSpan loadTime,
                                 IReadOnlyCollection<(string TableName, int Bytes, int Rows)> tableSizes)
     {
         ThrowIfNegative(sizeCompressed);
@@ -41,6 +42,7 @@ public sealed class ApiCatalogStatistics
         NumberOfPackages = numberOfPackages;
         NumberOfPackageVersions = numberOfPackageVersions;
         NumberOfPackageAssemblies = numberOfPackageAssemblies;
+        LoadTime = loadTime;
         TableSizes = tableSizes;
     }
 
@@ -55,6 +57,7 @@ public sealed class ApiCatalogStatistics
     public int NumberOfPackages { get; }
     public int NumberOfPackageVersions { get; }
     public int NumberOfPackageAssemblies { get; }
+    public TimeSpan LoadTime { get; }
     public IReadOnlyCollection<(string TableName, int Bytes, int Rows)> TableSizes { get; }
 
     public override string ToString()
@@ -71,6 +74,9 @@ public sealed class ApiCatalogStatistics
         sb.AppendLine($"Packages                  : {NumberOfPackages,12:N0}");
         sb.AppendLine($"Package versions          : {NumberOfPackageVersions,12:N0}");
         sb.AppendLine($"Package assemblies        : {NumberOfPackageAssemblies,12:N0}");
+
+        if (LoadTime != TimeSpan.Zero)
+            sb.AppendLine($"Load time                 : {LoadTime.TotalSeconds:F4} seconds");
 
         foreach (var tableSize in TableSizes)
         {

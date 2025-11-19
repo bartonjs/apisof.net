@@ -262,8 +262,10 @@ internal sealed class Main : IConsoleMain
         builder.Index(indexStore);
         builder.Build(catalogModelPath);
 
+        var sw = Stopwatch.StartNew();
         var model = await ApiCatalogModel.LoadAsync(catalogModelPath);
-        var stats = model.GetStatistics();
+        sw.Stop();
+        var stats = model.GetStatistics(sw.Elapsed);
         var statsText = stats.ToString();
         Console.WriteLine("Catalog stats:");
         Console.Write(statsText);

@@ -60,9 +60,14 @@
                     <td>bytes</td>
                 </tr>
                 <tr>
-                    <th>Size Uncompressed</th>
-                    <td>@Statistics.SizeUncompressed.ToString("N0")</td>
-                    <td>bytes</td>
+	                <th>Size Uncompressed</th>
+	                <td>@Statistics.SizeUncompressed.ToString("N0")</td>
+	                <td>bytes</td>
+                </tr>
+                <tr>
+	                <th>Load Time</th>
+	                <td>@Statistics.LoadTime.TotalSeconds.ToString("F4")</td>
+	                <td>seconds</td>
                 </tr>
                 @foreach (var (tableName, size, rows) in Statistics.TableSizes)
                 {

@@ -467,7 +467,7 @@ public sealed class ApiCatalogModel
         return offset < 0 ? null : new ExperimentalModel(this, offset);
     }
 
-    public ApiCatalogStatistics GetStatistics()
+    public ApiCatalogStatistics GetStatistics(TimeSpan loadTime)
     {
         var allApis = RootApis.SelectMany(a => a.DescendantsAndSelf());
         var tableSizes = new[] {
@@ -498,6 +498,7 @@ public sealed class ApiCatalogModel
             numberOfPackages: Packages.Select(p => p.Name).Distinct().Count(),
             numberOfPackageVersions: Packages.Count(),
             numberOfPackageAssemblies: Assemblies.SelectMany(a => a.Packages).Count(),
+            loadTime,
             tableSizes
         );
     }

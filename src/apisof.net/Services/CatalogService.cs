@@ -1,4 +1,5 @@
-﻿using System.IO.Compression;
+﻿using System.Diagnostics;
+using System.IO.Compression;
 using ApisOfDotNet.Shared;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Options;
@@ -43,6 +44,7 @@ public sealed class CatalogService
     public async Task InvalidateAsync()
     {
         var invalidateCachedDownload = !_environment.IsDevelopment();
+        var sw = Stopwatch.StartNew();
         var catalogTask = _catalogBlobSource.DownloadAsync(invalidateCachedDownload);
         var suffixTreeTask = _suffixTreeBlobSource.DownloadAsync(invalidateCachedDownload);
         var jobInfoTask = _catalogJobBlobSource.DownloadAsync(invalidateCachedDownload);
@@ -53,7 +55,15 @@ public sealed class CatalogService
                            jobInfoTask,
                            usageDataTask,
                            designNotesTask);
-        _data = new CatalogData(catalogTask.Result, suffixTreeTask.Result, jobInfoTask.Result, usageDataTask.Result, designNotesTask.Result);
+        
+        sw.Stop();
+        _data = new CatalogData(
+            catalogTask.Result,
+            suffixTreeTask.Result,
+            jobInfoTask.Result,
+            usageDataTask.Result,
+            designNotesTask.Result,
+            sw.Elapsed);
     }
 
     public async void InvalidateCatalog()
@@ -182,11 +192,23 @@ public sealed class CatalogService
         public static CatalogData Empty { get; } = new();
 
         private CatalogData()
-            : this(ApiCatalogModel.Empty, SuffixTree.Empty, CatalogJobInfo.Empty, FeatureUsageData.Empty, DesignNoteDatabase.Empty)
+            : this(
+                ApiCatalogModel.Empty,
+                SuffixTree.Empty,
+                CatalogJobInfo.Empty,
+                FeatureUsageData.Empty,
+                DesignNoteDatabase.Empty,
+                TimeSpan.Zero)
         {
         }
 
-        public CatalogData(ApiCatalogModel catalog, SuffixTree suffixTree, CatalogJobInfo jobInfo, FeatureUsageData usageData, DesignNoteDatabase designNotes)
+        public CatalogData(
+            ApiCatalogModel catalog,
+            SuffixTree suffixTree,
+            CatalogJobInfo jobInfo,
+            FeatureUsageData usageData,
+            DesignNoteDatabase designNotes,
+            TimeSpan loadTime)
         {
             ThrowIfNull(catalog);
             ThrowIfNull(suffixTree);
@@ -199,7 +221,7 @@ public sealed class CatalogService
             JobInfo = jobInfo;
             UsageData = usageData;
             DesignNotes = designNotes;
-            Statistics = catalog.GetStatistics();
+            Statistics = catalog.GetStatistics(loadTime);
         }
 
         public ApiCatalogModel Catalog { get; }
@@ -214,7 +236,7 @@ public sealed class CatalogService
 
         public ApiCatalogStatistics Statistics { get; }
 
-        public CatalogData WithCatalog(ApiCatalogModel catalog, SuffixTree suffixTree, CatalogJobInfo jobInfo)
+        public CatalogData WithCatalog(ApiCatalogModel catalog, SuffixTree suffixTree, CatalogJobInfo jobInfo, TimeSpan loadTime)
         {
             ThrowIfNull(catalog);
             ThrowIfNull(suffixTree);
@@ -225,7 +247,7 @@ public sealed class CatalogService
                 ReferenceEquals(jobInfo, JobInfo))
                 return this;
 
-            return new CatalogData(catalog, suffixTree, jobInfo, UsageData, DesignNotes);
+            return new CatalogData(catalog, suffixTree, jobInfo, UsageData, DesignNotes, loadTime);
         }
 
         public CatalogData WithUsageData(FeatureUsageData usageData)
@@ -235,7 +257,7 @@ public sealed class CatalogService
             if (ReferenceEquals(usageData, UsageData))
                 return this;
 
-            return new CatalogData(Catalog, SuffixTree, JobInfo, usageData, DesignNotes);
+            return new CatalogData(Catalog, SuffixTree, JobInfo, usageData, DesignNotes, Statistics.LoadTime);
         }
 
         public CatalogData WithDesignNotes(DesignNoteDatabase designNotes)
@@ -245,7 +267,7 @@ public sealed class CatalogService
             if (ReferenceEquals(designNotes, DesignNotes))
                 return this;
 
-            return new CatalogData(Catalog, SuffixTree, JobInfo, UsageData, designNotes);
+            return new CatalogData(Catalog, SuffixTree, JobInfo, UsageData, designNotes, Statistics.LoadTime);
         }
     }
 
@@ -254,10 +276,12 @@ public sealed class CatalogService
         _logger.LogInformation("Reloading catalog...");
 
         const bool invalidateCachedDownload = true;
+        var sw = Stopwatch.StartNew();
         var catalog = await _catalogBlobSource.DownloadAsync(invalidateCachedDownload);
         var suffixTree = await _suffixTreeBlobSource.DownloadAsync(invalidateCachedDownload);
         var jobInfo = await _catalogJobBlobSource.DownloadAsync(invalidateCachedDownload);
-        _data = _data.WithCatalog(catalog, suffixTree, jobInfo);
+        sw.Stop();
+        _data = _data.WithCatalog(catalog, suffixTree, jobInfo, sw.Elapsed);
     }
 
     private async Task ReloadDesignNotesAsync()
