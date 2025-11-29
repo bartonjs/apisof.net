@@ -8,53 +8,55 @@
         <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarText">
-        <ul class="navbar-nav mr-auto">
-            <li>
-                <NavLink class="nav-link" href="@Link.ForCatalog()" Match="NavLinkMatch.All">
-                    <span class="oi oi-folder pr-1"></span> Browse
-                </NavLink>
-            </li>
-            <li>
-                <a class="nav-link" href="#" @onclick="() => ApiSearch.Open()">
-                    <span class="oi oi-magnifying-glass pr-1"></span> Search
-                </a>
-            </li>
-            <li>
-                <a class="nav-link" href="@Link.ForDiff()">
-                    <span class="oi oi-file pr-1"></span> Diff
-                </a>
-            </li>
-            <li class="dropdown">
-                <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-expanded="false">
-                    <span class="oi oi-link-intact"></span> Others
-                </a>
-                <div class="dropdown-menu">
-                    <a class="dropdown-item" href="/feature-usage">
-                        <span class="oi oi-dial mr-2"></span> Feature Usage
-                    </a>
-                    <a class="dropdown-item" href="/stats">
-	                    <span class="oi oi-pie-chart mr-2"></span> Stats
-                    </a>
-                    <a class="dropdown-item" href="/top">
-						<span class="oi oi-info mr-2"></span> Top APIs
-                    </a>
-                    <div class="dropdown-divider"></div>
-                    <a class="dropdown-item" href="/version">
-                        <span class="oi oi-tag mr-2"></span> Version
-                    </a>
-                    <a class="dropdown-item" href="https://github.com/bartonjs/apisof.net">
-                        <span class="oi oi-code mr-2"></span> Source
-                    </a>
-                </div>
-            </li>
-        </ul>
-        <ul class="navbar-nav">
-            <li>
-                <NavLink class="nav-link" href="/upgrade-planner">
-                    <span class="oi oi-cloud-download"></span> .NET Upgrade Planner
-                </NavLink>
-            </li>
-        </ul>
+	    <ul class="navbar-nav mr-auto">
+		    <li>
+			    <NavLink class="nav-link" href="@Link.ForCatalog()" Match="NavLinkMatch.All">
+				    <span class="oi oi-folder pr-1"></span> Browse
+			    </NavLink>
+		    </li>
+		    <li>
+			    <a class="nav-link" href="#" @onclick="() => ApiSearch.Open()">
+				    <span class="oi oi-magnifying-glass pr-1"></span> Search
+			    </a>
+		    </li>
+		    <li>
+			    <a class="nav-link" href="@Link.ForDiff()">
+				    <span class="oi oi-file pr-1"></span> Diff
+			    </a>
+		    </li>
+		    <li class="dropdown">
+			    <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-expanded="false">
+				    <span class="oi oi-link-intact"></span> Others
+			    </a>
+			    <div class="dropdown-menu">
+				    <a class="dropdown-item" href="/feature-usage">
+					    <span class="oi oi-dial mr-2"></span> Feature Usage
+				    </a>
+				    <a class="dropdown-item" href="/stats">
+					    <span class="oi oi-pie-chart mr-2"></span> Stats
+				    </a>
+				    <a class="dropdown-item" href="/top">
+					    <span class="oi oi-info mr-2"></span> Top APIs
+				    </a>
+				    <div class="dropdown-divider"></div>
+				    <a class="dropdown-item" href="/version">
+					    <span class="oi oi-tag mr-2"></span> Version
+				    </a>
+				    <a class="dropdown-item" href="https://github.com/bartonjs/apisof.net">
+					    <span class="oi oi-code mr-2"></span> Source
+				    </a>
+			    </div>
+		    </li>
+	    </ul>
+@* 
+	    <ul class="navbar-nav">
+		    <li>
+			    <NavLink class="nav-link" href="/upgrade-planner">
+				    <span class="oi oi-cloud-download"></span> .NET Upgrade Planner
+			    </NavLink>
+		    </li>
+	    </ul>
+ *@
     </div>
 </nav>
 
