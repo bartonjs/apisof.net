@@ -878,7 +878,7 @@ public partial class FrameworkDefinition
             [
                 new FrameworkPlatformDefinition("android")
                 {
-                    Versions = ["21.0", "22.0", "23.0", "24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0"]
+                    Versions = ["21.0", "22.0", "23.0", "24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0", "35.0"]
                 },
                 new FrameworkPlatformDefinition("ios")
                 {
@@ -966,9 +966,9 @@ public partial class FrameworkDefinition
                     Kind = PackKind.Library,
                     Workloads = ["aspire"]
                 },
-                new PackReference("Microsoft.Android.Ref.34")
+                new PackReference("Microsoft.Android.Ref.35")
                 {
-                    Version = "34.99",
+                    Version = "35.0.105",
                     Kind = PackKind.Framework,
                     Platforms = ["android"],
                     Workloads = ["android", "maui", "maui-android", "maui-mobile"]
@@ -1069,13 +1069,13 @@ public partial class FrameworkDefinition
                 },
             ]
         },
-        new FrameworkDefinition("net10.0", isPreview: true)
+        new FrameworkDefinition("net10.0")
         {
             SupportedPlatforms =
             [
                 new FrameworkPlatformDefinition("android")
                 {
-                    Versions = ["21.0", "22.0", "23.0", "24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0"]
+                    Versions = ["21.0", "22.0", "23.0", "24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0", "35.0", "36.0"]
                 },
                 new FrameworkPlatformDefinition("ios")
                 {
@@ -1165,7 +1165,7 @@ public partial class FrameworkDefinition
                 },
                 new PackReference("Microsoft.Android.Ref.36")
                 {
-                    Version = "36.0",
+                    Version = "36.1.2",
                     Kind = PackKind.Framework,
                     Platforms = ["android"],
                     Workloads = ["android", "maui", "maui-android", "maui-mobile"]
@@ -1176,7 +1176,7 @@ public partial class FrameworkDefinition
                     Kind = PackKind.Library,
                     Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
                 },
-                new PackReference(" Microsoft.iOS.Ref.net10.0_18.5")
+                new PackReference("Microsoft.iOS.Ref.net10.0_18.5")
                 {
                     Version = "18.5",
                     Kind = PackKind.Framework,
