@@ -13,7 +13,7 @@ public class ApiCatalogModelTests
     [Fact]
     public void Empty_Statistics_Zero()
     {
-        var statistics = ApiCatalogModel.Empty.GetStatistics();
+        var statistics = ApiCatalogModel.Empty.GetStatistics(TimeSpan.Zero);
 
         Assert.Equal(0, statistics.SizeCompressed);
         Assert.Equal(0, statistics.SizeUncompressed);
