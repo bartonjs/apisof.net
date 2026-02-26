@@ -171,6 +171,9 @@ internal static class CatalogExtensions
         if (symbol is IMethodSymbol { MethodKind: MethodKind.Constructor, Parameters.Length: 0 } m && m.ContainingType.IsValueType)
             return false;
 
+        if (symbol is ITypeSymbol { TypeKind: TypeKind.Extension })
+            return false;
+
         return true;
     }
 
