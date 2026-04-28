@@ -20,7 +20,7 @@ jobs:
     steps:
 
     - name: Get code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0 # We need the full history in order to use Git versioning
 
@@ -50,7 +50,7 @@ jobs:
         Squirrel pack --framework net6.0,vcredist143-x86 --packId "NetUpgradePlanner" --packTitle ".NET Upgrade Planner" --packVersion "${{ steps.nbgv.outputs.SemVer1 }}" --packAuthors "Immo Landwerth" --packDir "." -r "../../squirrel-release"
 
     - name: Upload build
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: squirrel-release
         path: .artifacts/squirrel-release
@@ -61,13 +61,13 @@ jobs:
     steps:
 
     - name: Download build
-      uses: actions/download-artifact@v5
+      uses: actions/download-artifact@v8
       with:
         name: squirrel-release
         path: .artifacts/squirrel-release
 
     - name: Upload release
-      uses: azure/cli@v2
+      uses: azure/cli@v3
       env:
         AZURE_STORAGE_CONNECTION_STRING: ${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
       with:
