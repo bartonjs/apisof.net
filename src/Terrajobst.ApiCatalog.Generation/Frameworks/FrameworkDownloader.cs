@@ -63,10 +63,18 @@ public static class FrameworkDownloader
                 Console.WriteLine($"{platformFramework.GetShortFolderName()}");
 
                 var builder = new PackageGraphBuilder(store, platformFramework);
+                var highestAndroidPack = packs
+                    .Where(IsAndroidReferencePack)
+                    .Where(p => Applies(platformFramework, framework, p))
+                    .MaxBy(p => p.Platforms
+                        .Select(platform => NuGetFramework.Parse($"{framework.Name}-{platform}").PlatformVersion)
+                        .Max());
 
                 // Foreach pack, we want to select the highest version that applies.
 
-                foreach (var packGroup in packs.GroupBy(p => p.Name))
+                foreach (var packGroup in packs
+                    .Where(p => !IsAndroidReferencePack(p) || ReferenceEquals(p, highestAndroidPack))
+                    .GroupBy(p => p.Name))
                 {
                     var pack = packGroup
                         .Where(p => Applies(platformFramework, framework, p))
@@ -182,6 +190,11 @@ public static class FrameworkDownloader
         }
 
         return packFramework.PlatformVersion <= framework.PlatformVersion;
+    }
+
+    private static bool IsAndroidReferencePack(PackReference pack)
+    {
+        return pack.Name.StartsWith("Microsoft.Android.Ref.", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void Validate()
