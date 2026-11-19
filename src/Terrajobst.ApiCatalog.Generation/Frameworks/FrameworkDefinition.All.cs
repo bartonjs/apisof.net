@@ -1266,33 +1266,33 @@ public partial class FrameworkDefinition
                 },
             ]
         },
-        new FrameworkDefinition("net11.0", isPreview: true)
+        new FrameworkDefinition("net11.0")
         {
             SupportedPlatforms =
             [
                 new FrameworkPlatformDefinition("android")
                 {
-                    Versions = ["21.0", "22.0", "23.0", "24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0", "35.0", "36.0"]
+                    Versions = ["24.0", "25.0", "26.0", "27.0", "28.0", "29.0", "30.0", "31.0", "32.0", "33.0", "34.0", "35.0", "36.0", "36.1", "37.0", "37.1", "37.2"]
                 },
                 new FrameworkPlatformDefinition("ios")
                 {
-                    Versions = ["10.0", "10.1", "10.2", "10.3", "11.0", "11.1", "11.2", "11.3", "11.4", "12.0", "12.1", "12.2", "12.3", "12.4", "13.0", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "14.0", "14.1", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.0", "16.1", "16.2", "16.4", "17.0", "17.2"]
+                    Versions = ["10.0", "10.1", "10.2", "10.3", "11.0", "11.1", "11.2", "11.3", "11.4", "12.0", "12.1", "12.2", "12.3", "12.4", "13.0", "13.1", "13.2", "13.3", "13.4", "13.5", "13.6", "14.0", "14.1", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.0", "16.1", "16.2", "16.4", "17.0", "17.2", "17.4", "17.5", "18.0", "18.1", "18.2", "18.3", "18.4", "18.5", "26.0", "26.1", "26.2", "26.4", "26.5", "27.0", "27.1", "27.2"]
                 },
                 new FrameworkPlatformDefinition("maccatalyst")
                 {
-                    Versions = ["13.1", "13.2", "13.3", "13.4", "13.5", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.1", "16.2", "16.4", "17.0", "17.2"]
+                    Versions = ["13.1", "13.2", "13.3", "13.4", "13.5", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.1", "16.2", "16.4", "17.0", "17.2", "17.4", "17.5", "18.0", "18.1", "18.2", "18.3", "18.4", "18.5", "26.0", "26.1", "26.2", "26.4", "26.5", "27.0", "27.2"]
                 },
                 new FrameworkPlatformDefinition("macos")
                 {
-                    Versions = ["10.14", "10.15", "10.16", "11.0", "11.1", "11.2", "11.3", "12.0", "12.1", "12.3", "13.0", "13.1", "13.3", "14.0", "14.2"]
+                    Versions = ["10.14", "10.15", "10.16", "11.0", "11.1", "11.2", "11.3", "12.0", "12.1", "12.3", "13.0", "13.1", "13.3", "14.0", "14.2", "14.4", "14.5", "15.0", "15.1", "15.2", "15.3", "15.4", "15.5", "26.0", "26.1", "26.2", "26.4", "26.5", "27.0", "27.2"]
                 },
                 new FrameworkPlatformDefinition("tvos")
                 {
-                    Versions = ["10.0", "10.1", "10.2", "11.0", "11.1", "11.2", "11.3", "11.4", "12.0", "12.1", "12.2", "12.3", "12.4", "13.0", "13.2", "13.3", "13.4", "14.0", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.0", "16.1", "16.4", "17.0", "17.2"]
+                    Versions = ["10.0", "10.1", "10.2", "11.0", "11.1", "11.2", "11.3", "11.4", "12.0", "12.1", "12.2", "12.3", "12.4", "13.0", "13.2", "13.3", "13.4", "14.0", "14.2", "14.3", "14.4", "14.5", "15.0", "15.2", "15.4", "16.0", "16.1", "16.4", "17.0", "17.2", "17.4", "17.5", "18.0", "18.1", "18.2", "18.3", "18.4", "18.5", "26.0", "26.1", "26.2", "26.4", "26.5", "27.0", "27.2"]
                 },
                 new FrameworkPlatformDefinition("windows")
                 {
-                    Versions = ["10.0.17763", "10.0.18362", "10.0.19041", "10.0.20348", "10.0.22000", "10.0.22621"]
+                    Versions = ["10.0.17763", "10.0.18362", "10.0.19041", "10.0.20348", "10.0.22000", "10.0.22621", "10.0.26100"]
                 }
             ],
             BuiltInPacks =
@@ -1350,6 +1350,12 @@ public partial class FrameworkDefinition
                     Version = "10.0.22621",
                     Platforms = ["windows10.0.22621"],
                     Kind = PackKind.Framework
+                },
+                new PackReference("Microsoft.Windows.SDK.NET.Ref")
+                {
+                    Version = "10.0.26100",
+                    Platforms = ["windows10.0.26100"],
+                    Kind = PackKind.Framework
                 }
             ],
             WorkloadPacks =
@@ -1360,36 +1366,50 @@ public partial class FrameworkDefinition
                     Kind = PackKind.Library,
                     Workloads = ["aspire"]
                 },
-                new PackReference("Microsoft.Android.Ref.36")
+                new PackReference("Microsoft.Android.Ref.37")
                 {
-                    Version = "36.1.2",
+                    Version = "37.2.31",
                     Kind = PackKind.Framework,
                     Platforms = ["android"],
                     Workloads = ["android", "maui", "maui-android", "maui-mobile"]
                 },
+                new PackReference("Microsoft.Android.Ref.37.1")
+                {
+                    Version = "37.2.31",
+                    Kind = PackKind.Framework,
+                    Platforms = ["android37.1"],
+                    Workloads = ["android", "maui", "maui-android", "maui-mobile"]
+                },
+                new PackReference("Microsoft.Android.Ref.37.2")
+                {
+                    Version = "37.2.31",
+                    Kind = PackKind.Framework,
+                    Platforms = ["android37.2"],
+                    Workloads = ["android", "maui", "maui-android", "maui-mobile"]
+                },
                 new PackReference("Microsoft.AspNetCore.Components.WebView.Maui")
                 {
-                    Version = "10.0",
+                    Version = "11.0",
                     Kind = PackKind.Library,
                     Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
                 },
-                new PackReference("Microsoft.iOS.Ref.net10.0_18.5")
+                new PackReference("Microsoft.iOS.Ref.net11.0_27.2")
                 {
-                    Version = "18.5",
+                    Version = "27.2.11039",
                     Kind = PackKind.Framework,
                     Platforms = ["ios"],
                     Workloads = ["ios", "maui", "maui-ios", "maui-mobile"]
                 },
-                new PackReference("Microsoft.MacCatalyst.Ref.net10.0_18.5")
+                new PackReference("Microsoft.MacCatalyst.Ref.net11.0_27.2")
                 {
-                    Version = "18.5",
+                    Version = "27.2.11039",
                     Kind = PackKind.Framework,
                     Platforms = ["maccatalyst"],
                     Workloads = ["maccatalyst", "maui", "maui-desktop", "maui-maccatalyst"]
                 },
-                new PackReference("Microsoft.macOS.Ref.net10.0_15.5")
+                new PackReference("Microsoft.macOS.Ref.net11.0_27.2")
                 {
-                    Version = "15.5",
+                    Version = "27.2.11039",
                     Kind = PackKind.Framework,
                     Platforms = ["macos"],
                     Workloads = ["macos"]
@@ -1454,9 +1474,9 @@ public partial class FrameworkDefinition
                     Kind = PackKind.Library,
                     Workloads = ["maui", "maui-android", "maui-desktop", "maui-ios", "maui-maccatalyst", "maui-mobile", "maui-tizen", "maui-windows"]
                 },
-                new PackReference("Microsoft.tvOS.Ref.net10.0_18.5")
+                new PackReference("Microsoft.tvOS.Ref.net11.0_27.2")
                 {
-                    Version = "18.5",
+                    Version = "27.2.11039",
                     Kind = PackKind.Framework,
                     Platforms = ["tvos"],
                     Workloads = ["tvos"]
