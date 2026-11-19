@@ -69,7 +69,8 @@ public sealed class PackBasedFrameworkLocator : FrameworkLocator
     {
         return left.HasPlatform && right.HasPlatform &&
                string.Equals(left.Framework, right.Framework, StringComparison.OrdinalIgnoreCase) &&
-               string.Equals(left.Platform, right.Platform, StringComparison.OrdinalIgnoreCase);
+               string.Equals(left.Platform, right.Platform, StringComparison.OrdinalIgnoreCase) &&
+               left.Version.Equals(right.Version);
     }
 
     private static bool SameFrameworkSamePlatformLowerOrEqualPlatformVersion(NuGetFramework left, NuGetFramework right)
